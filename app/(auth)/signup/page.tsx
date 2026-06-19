@@ -2,7 +2,9 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { useMutation } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,11 +12,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Building2, User, Users, ArrowLeft, ArrowRight, Check } from "lucide-react"
+import { Building2, Users, ArrowLeft, ArrowRight, Check } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
+import { SwyftLogo } from "@/components/swyft-logo"
 
-type UserType = "agent" | "landlord" | "company"
+type UserType = "landlord" | "company"
 type CompanySize = "1-10" | "11-50" | "51-200" | "200+"
 
 interface FormData {
@@ -37,7 +40,7 @@ interface FormData {
 }
 
 const initialFormData: FormData = {
-  userType: "agent",
+  userType: "landlord",
   email: "",
   password: "",
   confirmPassword: "",
@@ -60,6 +63,9 @@ export default function SignUpPage() {
   const [formData, setFormData] = useState<FormData>(initialFormData)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const { signUp } = useAuth()
+  const updateCompany = useMutation(api.companies.updateCompany)
+  const setCompanyKind = useMutation(api.companies.setCompanyKind)
 
   const updateFormData = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -72,6 +78,7 @@ export default function SignUpPage() {
       case 2:
         return !!(
           formData.email &&
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) &&
           formData.password &&
           formData.confirmPassword &&
           formData.password === formData.confirmPassword &&
@@ -109,108 +116,74 @@ export default function SignUpPage() {
   }
 
   const handleSubmit = async () => {
-  if (!validateStep(4)) {
-    toast.error("Please agree to the terms and conditions");
-    return;
-  }
+    if (!validateStep(4)) {
+      toast.error("Please agree to the terms and conditions");
+      return;
+    }
 
-  setLoading(true);
-  try {
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: formData.email,
-      password: formData.password,
-      options: {
-        data: {
-          full_name: formData.userType === "company" ? formData.contactName : formData.name,
-        },
-      },
-    });
-
-    if (authError) throw authError;
-
-    if (authData.user) {
-      let companyAccountId = null;
-      let companyName = "";
-      let contactName = "";
-      let companyEmail = "";
-      let companyPhone = "";
-      let companyAddress = "";
-      let companyDescription = "";
-      let companySize = "1-10";
-
-      // Only create a company account if the user is a company or a landlord
-      if (formData.userType === "company" || formData.userType === "landlord") {
-        if (formData.userType === "company") {
-          companyName = formData.companyName;
-          contactName = formData.contactName;
-          companyEmail = formData.companyEmail;
-          companyPhone = formData.companyPhone;
-          companyAddress = formData.companyAddress;
-          companyDescription = formData.companyDescription;
-          companySize = formData.companySize;
-        } else {
-          // For landlords, create a default company name
-          companyName = `${formData.name}'s Properties`;
-          contactName = formData.name;
-          companyEmail = formData.email;
-          companyPhone = formData.phone;
-          companyAddress = formData.address;
-          companyDescription = formData.description;
-        }
-
-        // Create company account
-        const { data: companyData, error: companyError } = await supabase
-          .from("company_accounts")
-          .insert({
-            company_name: companyName,
-            contact_name: contactName,
-            email: companyEmail,
-            phone: companyPhone,
-            company_size: companySize,
-            address: companyAddress,
-            description: companyDescription,
-            subscription_plan: "basic",
-            is_active: true,
-            owner_id: authData.user.id,
-          })
-          .select()
-          .single();
-
-        if (companyError) throw companyError;
-        companyAccountId = companyData.id;
-      }
-
-      // Create user profile
-      const { error: profileError } = await supabase.from("users").insert({
-        id: authData.user.id,
-        email: formData.email,
+    setLoading(true);
+    try {
+      // Convex Auth creates the user and seeds an owner profile + company.
+      // Pass the contact name + phone so they're written server-side at
+      // creation (no auth race), unlike the company fields below.
+      const { error: signUpError } = await signUp(formData.email, formData.password, {
         name: formData.userType === "company" ? formData.contactName : formData.name,
         phone: formData.userType === "company" ? formData.companyPhone : formData.phone,
-        address: formData.userType === "company" ? formData.companyAddress : formData.address,
-        description: formData.userType === "company" ? formData.companyDescription : formData.description,
-        role: formData.userType === "company" ? "admin" : formData.userType,
-        company_account_id: companyAccountId,
-        is_company_owner: formData.userType === "company",
-        access: formData.userType === "landlord" ? [{ properties: ["read", "write"] }] : null,
       });
+      if (signUpError) throw signUpError;
 
-      if (profileError) throw profileError;
+      // Fill in the company details the multi-step form collected.
+      const companyName =
+        formData.userType === "company"
+          ? formData.companyName
+          : formData.name
+            ? `${formData.name}'s Properties`
+            : undefined;
+      const companyArgs = {
+        name: companyName,
+        email: formData.userType === "company" ? formData.companyEmail : formData.email,
+        phone: formData.userType === "company" ? formData.companyPhone : formData.phone,
+        address: formData.userType === "company" ? formData.companyAddress : formData.address,
+        size: formData.userType === "company" ? formData.companySize : undefined,
+        description:
+          formData.userType === "company" ? formData.companyDescription : formData.description,
+      };
+      // signUp() resolves before the new session token reaches the Convex
+      // client, so these mutations can briefly run unauthenticated. Retry until
+      // the token propagates. seedForNewUser already created the company (as a
+      // landlord), so failing here is non-fatal — it just leaves the details
+      // unset / the company type as landlord.
+      const isPropertyManager = formData.userType === "company";
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+          await updateCompany(companyArgs);
+          // A "company" sign-up is a property manager; flip the company kind
+          // (which also sets the owner's role to manager).
+          if (isPropertyManager) {
+            await setCompanyKind({ kind: "property_manager" });
+          }
+          break;
+        } catch (err: any) {
+          if (attempt < 9 && /not authenticated/i.test(err?.message ?? "")) {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            continue;
+          }
+          break;
+        }
+      }
 
-      toast.success("Account created successfully! Please check your email to verify your account.");
-      router.push("/login?message=Please check your email to verify your account");
+      toast.success("Account created successfully!");
+      router.push("/dashboard");
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      toast.error(error?.message || "Failed to create account");
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Signup error:", error);
-    toast.error(error.message || "Failed to create account");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const getUserTypeIcon = (type: UserType) => {
     switch (type) {
-      case "agent":
-        return <User className="h-8 w-8" />
       case "landlord":
         return <Building2 className="h-8 w-8" />
       case "company":
@@ -220,12 +193,10 @@ export default function SignUpPage() {
 
   const getUserTypeDescription = (type: UserType) => {
     switch (type) {
-      case "agent":
-        return "Individual real estate agent looking to list and market properties"
       case "landlord":
         return "Property owner managing rental properties and tenants"
       case "company":
-        return "Property management company or real estate firm with multiple agents"
+        return "Property management company or firm managing units on behalf of owners"
     }
   }
 
@@ -233,9 +204,8 @@ export default function SignUpPage() {
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Building2 className="h-8 w-8 text-green-600" />
-            <span className="text-2xl font-bold text-gray-900">Swyft Agent</span>
+          <div className="flex items-center justify-center mb-4">
+            <SwyftLogo className="h-11 w-auto" priority />
           </div>
           <CardTitle className="text-2xl">Create Your Account</CardTitle>
           <CardDescription>
@@ -268,7 +238,7 @@ export default function SignUpPage() {
             <div className="space-y-4">
               <Label className="text-base font-medium">What best describes you?</Label>
               <div className="grid gap-4">
-                {(["agent", "landlord", "company"] as UserType[]).map((type) => (
+                {(["landlord", "company"] as UserType[]).map((type) => (
                   <div
                     key={type}
                     className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
@@ -288,7 +258,7 @@ export default function SignUpPage() {
                       </div>
                       <div className="flex-1">
                         <h3 className="font-medium capitalize mb-1">
-                          {type === "company" ? "Property Management Company" : type}
+                          {type === "company" ? "Property Manager" : type}
                         </h3>
                         <p className="text-sm text-gray-600">{getUserTypeDescription(type)}</p>
                       </div>
@@ -500,8 +470,15 @@ export default function SignUpPage() {
                     <li>Allow us to send you important account notifications</li>
                   </ul>
                   <p className="mt-4">
-                    We are committed to protecting your privacy and will handle your data in accordance with our Privacy
-                    Policy.
+                    We are committed to protecting your privacy and will handle your data in accordance with our{" "}
+                    <Link href="/privacy" target="_blank" className="font-medium text-emerald-700 hover:underline">
+                      Privacy Policy
+                    </Link>
+                    . You can also review our full{" "}
+                    <Link href="/terms" target="_blank" className="font-medium text-emerald-700 hover:underline">
+                      Terms and Conditions
+                    </Link>
+                    .
                   </p>
                 </div>
               </div>
@@ -513,7 +490,15 @@ export default function SignUpPage() {
                   onCheckedChange={(checked) => updateFormData("agreeToTerms", checked)}
                 />
                 <Label htmlFor="agreeToTerms" className="text-sm">
-                  I agree to the Terms and Conditions and Privacy Policy *
+                  I agree to the{" "}
+                  <Link href="/terms" target="_blank" className="font-medium text-emerald-700 hover:underline">
+                    Terms and Conditions
+                  </Link>{" "}
+                  and{" "}
+                  <Link href="/privacy" target="_blank" className="font-medium text-emerald-700 hover:underline">
+                    Privacy Policy
+                  </Link>{" "}
+                  *
                 </Label>
               </div>
             </div>

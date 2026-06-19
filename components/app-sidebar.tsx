@@ -16,6 +16,8 @@ import {
   FileText,
   TrendingUp,
   Truck,
+  CreditCard,
+  Megaphone,
 } from "lucide-react"
 
 import {
@@ -34,9 +36,10 @@ import {
 } from "@/components/ui/sidebar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/components/auth-provider"
-import { supabase } from "@/lib/supabase"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import { SwyftLogo } from "@/components/swyft-logo"
 import Link from "next/link"
-import { useState, useEffect } from "react"
 
 interface UserProfile {
   role?: string
@@ -50,12 +53,13 @@ interface UserProfile {
   }
 }
 
-// Menu items for different user roles
-const getMenuItems = (userRole: string) => {
+// Menu items for different user roles. `companyKind` gates the admin/team area,
+// which only property-manager companies see.
+const getMenuItems = (userRole: string, companyKind?: string) => {
   const baseItems = [
     {
       title: "Dashboard",
-      url: "/",
+      url: "/dashboard",
       icon: Home,
     },
   ]
@@ -69,9 +73,9 @@ const getMenuItems = (userRole: string) => {
         icon: Home,
       },
       {
-        title: "Add New Unit",
-        url: "/new-vacant-unit",
-        icon: Plus,
+        title: "Ads",
+        url: "/ads",
+        icon: Megaphone,
       },
     ],
   }
@@ -109,11 +113,30 @@ const getMenuItems = (userRole: string) => {
     ],
   }
 
+  // Team management is property-manager-only (landlords don't manage staff).
+  const isPropertyManager = companyKind === "property_manager"
+  const teamManagementGroups = isPropertyManager
+    ? [
+        {
+          title: "Team Management",
+          items: [
+            {
+              title: "Team Members",
+              url: "/admin",
+              icon: Users,
+            },
+            {
+              title: "Roles & Permissions",
+              url: "/admin/roles",
+              icon: Settings,
+            },
+          ],
+        },
+      ]
+    : []
+
   // Role-specific menu configurations
   switch (userRole) {
-    case "agent":
-      return [...baseItems, propertyItems, servicesItems, basicAnalytics, settingsItems]
-
     case "landlord":
       return [
         ...baseItems,
@@ -136,9 +159,9 @@ const getMenuItems = (userRole: string) => {
               icon: Home,
             },
             {
-              title: "Add New Unit",
-              url: "/new-vacant-unit",
-              icon: Plus,
+              title: "Ads",
+              url: "/ads",
+              icon: Megaphone,
             },
           ],
         },
@@ -150,16 +173,16 @@ const getMenuItems = (userRole: string) => {
               url: "/tenants",
               icon: Users,
             },
-            {
-              title: "Add Tenant",
-              url: "/tenants/add",
-              icon: Plus,
-            },
           ],
         },
         {
-          title: "Financial Documents",
+          title: "Money",
           items: [
+            {
+              title: "Payments",
+              url: "/payments",
+              icon: CreditCard,
+            },
             {
               title: "Invoices",
               url: "/finances/invoices",
@@ -177,6 +200,7 @@ const getMenuItems = (userRole: string) => {
         settingsItems,
       ]
 
+    case "owner":
     case "admin":
     case "manager":
       return [
@@ -200,9 +224,9 @@ const getMenuItems = (userRole: string) => {
               icon: Home,
             },
             {
-              title: "Add New Unit",
-              url: "/new-vacant-unit",
-              icon: Plus,
+              title: "Ads",
+              url: "/ads",
+              icon: Megaphone,
             },
           ],
         },
@@ -215,14 +239,19 @@ const getMenuItems = (userRole: string) => {
               icon: Users,
             },
             {
-              title: "Add Tenant",
-              url: "/tenants/add",
-              icon: Plus,
-            },
-            {
               title: "Notices",
               url: "/notices",
               icon: Bell,
+            },
+          ],
+        },
+        {
+          title: "Financial Management",
+          items: [
+            {
+              title: "Payments",
+              url: "/payments",
+              icon: CreditCard,
             },
             {
               title: "Invoices",
@@ -234,11 +263,6 @@ const getMenuItems = (userRole: string) => {
               url: "/finances/receipts",
               icon: FileText,
             },
-          ],
-        },
-        {
-          title: "Financial Management",
-          items: [
             {
               title: "Finances",
               url: "/finances",
@@ -261,21 +285,7 @@ const getMenuItems = (userRole: string) => {
             },
           ],
         },
-        {
-          title: "Team Management",
-          items: [
-            {
-              title: "Team Members",
-              url: "/admin",
-              icon: Users,
-            },
-            {
-              title: "Roles & Permissions",
-              url: "/admin/roles",
-              icon: Settings,
-            },
-          ],
-        },
+        ...teamManagementGroups,
         servicesItems,
         settingsItems,
       ]
@@ -287,62 +297,38 @@ const getMenuItems = (userRole: string) => {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, signOut } = useAuth()
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const me = useQuery(api.companies.me, user ? {} : "skip")
+  const loading = Boolean(user) && me === undefined
 
-  useEffect(() => {
-    async function fetchUserProfile() {
-      if (!user) return
-
-      try {
-        // Get the user's basic info and role from users table with company info if available
-        const { data: userData, error: userError } = await supabase
-          .from("users")
-          .select(`
-            role,
-            name,
-            email,
-            company_account_id,
-            is_company_owner,
-            company_accounts (
-              company_name,
-              contact_name
-            )
-          `)
-          .eq("id", user.id)
-          .single()
-
-        if (userError) {
-          console.error("Error fetching user data:", userError)
-          return
-        }
-
-        setUserProfile(userData)
-      } catch (error) {
-        console.error("Error fetching user profile:", error)
-      } finally {
-        setLoading(false)
+  const userProfile: UserProfile | null = me
+    ? {
+        role: me.profile?.role,
+        name: me.profile?.fullName ?? undefined,
+        email: me.email,
+        company_account_id: me.profile?.companyId,
+        is_company_owner: me.profile?.isCompanyOwner,
+        company_accounts: {
+          company_name: me.company?.name,
+          contact_name: me.profile?.fullName ?? undefined,
+        },
       }
-    }
+    : null
 
-    fetchUserProfile()
-  }, [user])
-
-  // Determine user role
-  const userRole = userProfile?.role || "agent"
-  const menuItems = getMenuItems(userRole)
+  // Determine user role + company kind (drives which menu sections show).
+  const userRole = userProfile?.role || "landlord"
+  const companyKind = me?.company?.kind
+  const menuItems = getMenuItems(userRole, companyKind)
 
   // Get role display name
   const getRoleDisplayName = (role: string) => {
     switch (role) {
-      case "agent":
-        return "Real Estate Agent"
+      case "owner": // transitional alias for landlord
       case "landlord":
-        return "Property Landlord"
-      case "admin":
-        return "Property Management"
+        return "Landlord"
       case "manager":
         return "Property Manager"
+      case "agent":
+        return "Agent"
       default:
         return "User"
     }
@@ -356,9 +342,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     if (userProfile?.name) {
       return userProfile.name
     }
-    if (user?.user_metadata?.full_name) {
-      return user.user_metadata.full_name
-    }
     return user?.email || "User"
   }
 
@@ -366,8 +349,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar collapsible="icon" className="border-r border-gray-200 bg-white shadow-sm" {...props}>
       <SidebarHeader className="border-b border-gray-100 bg-white">
         <div className="flex items-center gap-2 px-2 py-2">
-          <Building2 className="h-6 w-6 text-green-600" />
-          <span className="font-semibold text-gray-900">Swyft Agent</span>
+          <SwyftLogo className="h-7 w-auto" priority />
         </div>
         {/* Mobile menu trigger - visible on small screens with highest z-index */}
         <div className="md:hidden flex justify-end p-2">

@@ -1,195 +1,89 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Users, Building, DollarSign, Activity, Shield, ShieldCheck } from "lucide-react"
-import { AddAgentModal } from "@/components/add-agent-modal"
+import { useState } from "react"
+import { useQuery, useMutation, useAction } from "convex/react"
+import { api } from "@/convex/_generated/api"
 import { useAuth } from "@/components/auth-provider"
-import { supabase } from "@/lib/supabase"
-import { getCachedData, CACHE_KEYS } from "@/lib/cache"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { hasAdminPermission, type AccessPayload } from "@/lib/supabase-admin"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Loader2, Lock, UserPlus, Trash2, X, Copy } from "lucide-react"
+import { toast } from "sonner"
+import Link from "next/link"
 
-export default function AdminPage() {
-  const { user: authUser } = useAuth()
-  const [isAdmin, setIsAdmin] = useState<boolean>(false)
-  const [loading, setLoading] = useState<boolean>(true)
-  const [analytics, setAnalytics] = useState<any>(null)
-  const [financials, setFinancials] = useState<any>(null)
-  const [companyId, setCompanyId] = useState<string | null>(null)
+type AssignableRole = "manager" | "agent"
 
-  // Resolve admin access from profile: role OR owner OR permissions include admin
-  useEffect(() => {
-    const run = async () => {
-      try {
-        setLoading(true)
-        if (!authUser?.id) {
-          setIsAdmin(false)
-          return
-        }
-        const { data: me, error } = await supabase
-          .from("users")
-          .select("role, is_company_owner, company_account_id, access")
-          .eq("id", authUser.id)
-          .maybeSingle()
-        if (error) throw error
+const roleLabel: Record<string, string> = {
+  landlord: "Landlord",
+  owner: "Landlord",
+  manager: "Manager",
+  agent: "Agent",
+}
 
-        const role = (me?.role || "").toLowerCase()
-        const owner = Boolean(me?.is_company_owner)
-        const access = (me?.access as AccessPayload) || null
-        const adminByRole = role === "admin"
-        const adminByAccess = hasAdminPermission(access)
+function randomPassword() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")
+}
 
-        setCompanyId(me?.company_account_id ?? null)
-        setIsAdmin(owner || adminByRole || adminByAccess)
-      } catch (e) {
-        // default to restricted if we fail to resolve
-        setIsAdmin(false)
-        // eslint-disable-next-line no-console
-        console.error("Failed to resolve admin access", e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    run()
-  }, [authUser?.id])
+export default function AdminTeamPage() {
+  const { user, loading } = useAuth()
+  const isPropertyManager = user?.companyKind === "property_manager"
 
-  useEffect(() => {
-    const loadAdminData = async () => {
-      if (!companyId) return
-      try {
-        // Pull basic analytics, leave as-is with your existing cache helpers
-        const analyticsData = await getCachedData(
-          CACHE_KEYS.ANALYTICS(companyId),
-          async () => {
-            const [tenantsResult, buildingsResult, unitsResult] = await Promise.all([
-              supabase.from("tenants").select("*").eq("company_account_id", companyId),
-              supabase.from("buildings").select("*").eq("company_account_id", companyId),
-              supabase.from("vacant_units").select("*").eq("company_account_id", companyId),
-            ])
-            const tenants = tenantsResult.data || []
-            const buildings = buildingsResult.data || []
-            const units = unitsResult.data || []
-            const totalTenants = tenants.length
-            const totalBuildings = buildings.length
-            const totalUnits = units.length
-            const occupiedUnits = tenants.filter((t) => t.status === "active").length
-            const occupancyRate = totalUnits > 0 ? (occupiedUnits / totalUnits) * 100 : 0
-
-            const tenantStatusData = [
-              { name: "Active", value: tenants.filter((t) => t.status === "active").length, color: "#10b981" },
-              { name: "Moving Out", value: tenants.filter((t) => t.status === "moving-out").length, color: "#f59e0b" },
-              { name: "Moved Out", value: tenants.filter((t) => t.status === "moved-out").length, color: "#ef4444" },
-            ]
-
-            const monthlyTrends = [
-              { month: "Jan", tenants: 45, revenue: 450000, occupancy: 85 },
-              { month: "Feb", tenants: 52, revenue: 520000, occupancy: 88 },
-              { month: "Mar", tenants: 48, revenue: 480000, occupancy: 82 },
-              { month: "Apr", tenants: 61, revenue: 610000, occupancy: 92 },
-              { month: "May", tenants: 55, revenue: 550000, occupancy: 89 },
-              {
-                month: "Jun",
-                tenants: totalTenants,
-                revenue: totalTenants * 10000,
-                occupancy: Math.round(occupancyRate),
-              },
-            ]
-
-            return {
-              totalTenants,
-              totalBuildings,
-              totalUnits,
-              occupiedUnits,
-              occupancyRate,
-              tenantStatusData,
-              monthlyTrends,
-            }
-          },
-          5 * 60 * 1000,
-        )
-
-        const financialData = await getCachedData(
-          CACHE_KEYS.FINANCIALS(companyId),
-          async () => {
-            const [expensesResult, paymentsResult] = await Promise.all([
-              supabase.from("expenses").select("*").eq("company_account_id", companyId),
-              supabase.from("payments").select("*").eq("company_account_id", companyId),
-            ])
-            const expenses = expensesResult.data || []
-            const payments = paymentsResult.data || []
-            let monthlyRevenue, totalRevenue, totalExpenses, totalProfit
-
-            if (payments.length > 0 || expenses.length > 0) {
-              const totalPayments = payments.reduce((sum, p) => sum + (p.amount || 0), 0)
-              const totalExpensesAmount = expenses.reduce((sum, x) => sum + (x.amount || 0), 0)
-              monthlyRevenue = [
-                {
-                  month: "Current",
-                  revenue: totalPayments,
-                  expenses: totalExpensesAmount,
-                  profit: totalPayments - totalExpensesAmount,
-                },
-              ]
-              totalRevenue = totalPayments
-              totalExpenses = totalExpensesAmount
-              totalProfit = totalRevenue - totalExpenses
-            } else {
-              monthlyRevenue = [
-                { month: "Jan", revenue: 450000, expenses: 120000, profit: 330000 },
-                { month: "Feb", revenue: 520000, expenses: 135000, profit: 385000 },
-                { month: "Mar", revenue: 480000, expenses: 125000, profit: 355000 },
-                { month: "Apr", revenue: 610000, expenses: 150000, profit: 460000 },
-                { month: "May", revenue: 550000, expenses: 140000, profit: 410000 },
-                { month: "Jun", revenue: 670000, expenses: 160000, profit: 510000 },
-              ]
-              totalRevenue = monthlyRevenue.reduce((s, m) => s + m.revenue, 0)
-              totalExpenses = monthlyRevenue.reduce((s, m) => s + m.expenses, 0)
-              totalProfit = totalRevenue - totalExpenses
-            }
-
-            return { monthlyRevenue, totalRevenue, totalExpenses, totalProfit }
-          },
-          5 * 60 * 1000,
-        )
-
-        setAnalytics(analyticsData)
-        setFinancials(financialData)
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("Error loading admin data", e)
-      }
-    }
-    if (isAdmin) {
-      loadAdminData()
-    }
-  }, [isAdmin, companyId])
+  // Only query when allowed — the backend throws for non-property-managers.
+  const team = useQuery(api.admin.team, isPropertyManager ? {} : "skip")
+  const updateRole = useMutation(api.admin.updateMemberRole)
+  const removeMember = useMutation(api.admin.removeMember)
+  const revokeInvite = useMutation(api.admin.revokeInvite)
+  const createMember = useAction(api.admin.createMember)
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading admin dashboard...</p>
-        </div>
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     )
   }
 
-  if (!isAdmin) {
+  if (!isPropertyManager) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Card className="w-full max-w-md border-none shadow-sm">
-          <CardContent className="p-6 text-center">
-            <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Access Restricted</h2>
-            <p className="text-muted-foreground mb-4">
-              You don&apos;t have admin rights. Please contact your administrator for access.
-            </p>
-            <Button variant="outline" onClick={() => window.history.back()}>
-              Go Back
+      <div className="container mx-auto p-6">
+        <Card className="mx-auto mt-10 max-w-lg">
+          <CardHeader className="text-center">
+            <div className="mb-2 flex justify-center">
+              <Lock className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <CardTitle>Team management is for property managers</CardTitle>
+            <CardDescription>
+              This section is only available to property-manager accounts. If you manage
+              properties on behalf of landlords, switch your company type in Settings.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/dashboard">Back to dashboard</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/settings">Go to Settings</Link>
             </Button>
           </CardContent>
         </Card>
@@ -198,115 +92,246 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="h-full flex flex-col space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Company analytics and system management</p>
-          <Alert className="bg-emerald-50 border-emerald-200 text-emerald-900">
-            <ShieldCheck className="h-4 w-4" />
-            <AlertTitle>Admin access confirmed</AlertTitle>
-            <AlertDescription>You have full access to the admin panel.</AlertDescription>
-          </Alert>
+    <div className="container mx-auto max-w-4xl space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Team Members</h1>
+          <p className="text-sm text-muted-foreground">
+            Managers and agents in your property-management company.
+          </p>
         </div>
-        <div className="flex gap-2">
-          {/* Keep your existing AddAgentModal API integration */}
-          <AddAgentModal
-            onAgentAdded={() => {
-              /* optionally refresh analytics */
-            }}
-            trigger={<Button>Add Agent</Button>}
-          />
-          <Badge variant="outline" className="bg-primary/10">
-            <Shield className="mr-1 h-3 w-3" />
-            Admin Access
-          </Badge>
-        </div>
+        <AddMemberDialog onCreate={createMember} />
       </div>
 
-      {analytics && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-none shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Tenants</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{analytics.totalTenants}</div>
-              <p className="text-xs text-muted-foreground">{analytics.occupiedUnits} active</p>
-            </CardContent>
-          </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Members</CardTitle>
+        </CardHeader>
+        <CardContent className="px-0">
+          {team === undefined ? (
+            <div className="flex h-24 items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead className="w-[1%] whitespace-nowrap text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {team.members.map((m) => (
+                  <TableRow key={m.profileId}>
+                    <TableCell>
+                      <div className="font-medium">{m.fullName || "—"}</div>
+                      {m.isSelf && <span className="text-xs text-muted-foreground">You</span>}
+                    </TableCell>
+                    <TableCell>
+                      {m.isCompanyOwner ? (
+                        <Badge>Owner · {roleLabel[m.role] ?? m.role}</Badge>
+                      ) : (
+                        <Select
+                          value={m.role}
+                          onValueChange={async (v) => {
+                            try {
+                              await updateRole({ profileId: m.profileId, role: v as AssignableRole })
+                              toast.success("Role updated")
+                            } catch (e: any) {
+                              toast.error(e?.message ?? "Failed to update role")
+                            }
+                          }}
+                          disabled={m.isSelf}
+                        >
+                          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="agent">Agent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {!m.isCompanyOwner && !m.isSelf && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Remove member"
+                          onClick={async () => {
+                            if (!confirm(`Remove ${m.fullName || "this member"} from the team?`)) return
+                            try {
+                              await removeMember({ profileId: m.profileId })
+                              toast.success("Member removed")
+                            } catch (e: any) {
+                              toast.error(e?.message ?? "Failed to remove member")
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
-          <Card className="border-none shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Buildings</CardTitle>
-              <Building className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{analytics.totalBuildings}</div>
-              <p className="text-xs text-muted-foreground">{analytics.totalUnits} total units</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Occupancy Rate</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{analytics.occupancyRate.toFixed(1)}%</div>
-              <p className="text-xs text-muted-foreground">
-                {analytics.occupiedUnits}/{analytics.totalUnits} occupied
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                KSh {analytics.monthlyTrends?.[analytics.monthlyTrends.length - 1]?.revenue?.toLocaleString?.() || "—"}
+      {team && team.invites.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Pending invites</CardTitle>
+            <CardDescription>
+              These people have been invited but haven&apos;t signed in yet.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {team.invites.map((inv) => (
+              <div key={inv.inviteId} className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div className="text-sm">
+                  <span className="font-medium">{inv.email}</span>
+                  <Badge variant="secondary" className="ml-2">{roleLabel[inv.role] ?? inv.role}</Badge>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Revoke invite"
+                  onClick={async () => {
+                    try {
+                      await revokeInvite({ inviteId: inv.inviteId })
+                      toast.success("Invite revoked")
+                    } catch (e: any) {
+                      toast.error(e?.message ?? "Failed to revoke invite")
+                    }
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
-              <p className="text-xs text-green-600">Updated</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {financials && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="border-none shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">KSh {financials.totalRevenue.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Last period</p>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">KSh {financials.totalExpenses.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Last period</p>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">KSh {financials.totalProfit.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Last period</p>
-            </CardContent>
-          </Card>
-        </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
     </div>
+  )
+}
+
+function AddMemberDialog({
+  onCreate,
+}: {
+  onCreate: (args: {
+    email: string
+    name?: string
+    phone?: string
+    role: AssignableRole
+    tempPassword: string
+  }) => Promise<{ email: string }>
+}) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    email: "",
+    name: "",
+    phone: "",
+    role: "agent" as AssignableRole,
+    tempPassword: randomPassword(),
+  })
+
+  const set = (k: keyof typeof form, v: string) => setForm((p) => ({ ...p, [k]: v }))
+
+  const submit = async () => {
+    if (!form.email.trim()) return toast.error("Email is required")
+    setSaving(true)
+    try {
+      await onCreate({
+        email: form.email.trim(),
+        name: form.name.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        role: form.role,
+        tempPassword: form.tempPassword,
+      })
+      toast.success("Member added — share their temporary password so they can sign in")
+      setOpen(false)
+      setForm({ email: "", name: "", phone: "", role: "agent", tempPassword: randomPassword() })
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to add member")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button><UserPlus className="mr-2 h-4 w-4" /> Add member</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add team member</DialogTitle>
+          <DialogDescription>
+            Creates an account in your company. Share the temporary password so they can sign in
+            and change it.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="m-email">Email *</Label>
+            <Input id="m-email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="agent@example.com" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="m-name">Full name</Label>
+              <Input id="m-name" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Jane Doe" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="m-phone">Phone</Label>
+              <Input id="m-phone" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="07xx xxx xxx" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Role</Label>
+            <Select value={form.role} onValueChange={(v) => set("role", v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manager">Manager — full property-management access</SelectItem>
+                <SelectItem value="agent">Agent — limited access</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="m-pass">Temporary password</Label>
+            <div className="flex gap-2">
+              <Input id="m-pass" value={form.tempPassword} onChange={(e) => set("tempPassword", e.target.value)} />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Copy password"
+                onClick={() => {
+                  navigator.clipboard?.writeText(form.tempPassword)
+                  toast.success("Password copied")
+                }}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button type="button" variant="outline" onClick={() => set("tempPassword", randomPassword())}>
+                New
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">At least 8 characters. They can change it after signing in.</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={submit} disabled={saving}>
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Add member
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

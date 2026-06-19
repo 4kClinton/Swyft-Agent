@@ -1,8 +1,9 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/components/auth-provider"
+import { ConvexClientProvider } from "@/components/convex-client-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
@@ -10,12 +11,18 @@ import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Swyft Agent - Property Management",
-  description: "Modern property management platform for real estate professionals",
+  title: "Swyft — List once. Fill faster. Get paid cleaner.",
+  description:
+    "Fill vacant units from a trust-first rental marketplace and reconcile rent on the M-Pesa paybill you already use. Swyft never touches your money.",
   manifest: "/manifest.json",
-  themeColor: "#10b981",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
-    generator: 'v0.app'
+  generator: "v0.app",
+}
+
+export const viewport: Viewport = {
+  themeColor: "#059669",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({
@@ -31,11 +38,13 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <AuthProvider>
-            {children}
-            <Toaster />
-            <PWAInstallPrompt />
-          </AuthProvider>
+          <ConvexClientProvider>
+            <AuthProvider>
+              {children}
+              <Toaster />
+              <PWAInstallPrompt />
+            </AuthProvider>
+          </ConvexClientProvider>
         </ThemeProvider>
       </body>
     </html>

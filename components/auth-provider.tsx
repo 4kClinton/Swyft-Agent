@@ -1,72 +1,100 @@
 "use client"
 
 import type React from "react"
+import { createContext, useContext } from "react"
+import { useConvexAuth, useQuery } from "convex/react"
+import { useAuthActions } from "@convex-dev/auth/react"
+import { api } from "@/convex/_generated/api"
 
-import { createContext, useContext, useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase"
-import type { User } from "@supabase/supabase-js"
+// Minimal user shape the app relies on (id + email + role + company).
+export interface AppUser {
+  id: string
+  email?: string
+  role?: string
+  isCompanyOwner?: boolean
+  companyId?: string
+  // "landlord" | "property_manager" — gates the admin/team area.
+  companyKind?: string
+}
 
 interface AuthContextType {
-  user: User | null
+  user: AppUser | null
   loading: boolean
+  // True when the session is authenticated but no profile row exists (legacy/
+  // broken account, or seed still in flight). UI should handle this gracefully.
+  profileMissing: boolean
   signIn: (email: string, password: string) => Promise<{ error: any }>
-  signUp: (email: string, password: string) => Promise<{ error: any }>
+  signUp: (
+    email: string,
+    password: string,
+    profile?: { name?: string; phone?: string },
+  ) => Promise<{ error: any }>
   signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { isLoading, isAuthenticated } = useConvexAuth()
+  const { signIn: convexSignIn, signOut: convexSignOut } = useAuthActions()
 
-  useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+  // Only query the profile once authenticated.
+  const me = useQuery(api.companies.me, isAuthenticated ? {} : "skip")
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+  const user: AppUser | null = isAuthenticated
+    ? {
+        id: me?.profile?.userId ?? "",
+        email: me?.email,
+        role: me?.profile?.role,
+        isCompanyOwner: me?.profile?.isCompanyOwner,
+        companyId: me?.profile?.companyId,
+        companyKind: me?.company?.kind,
+      }
+    : null
 
-    return () => subscription.unsubscribe()
-  }, [])
+  // Loading until Convex auth resolves, and (when authed) until the profile loads.
+  const loading = isLoading || (isAuthenticated && me === undefined)
+
+  // Authenticated, query resolved, but no profile was seeded for this user.
+  const profileMissing = Boolean(isAuthenticated) && !!me && me.profile === null
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    return { error }
+    try {
+      await convexSignIn("password", { email: email.trim().toLowerCase(), password, flow: "signIn" })
+      return { error: null }
+    } catch (error) {
+      return { error }
+    }
   }
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-    return { error }
+  const signUp = async (
+    email: string,
+    password: string,
+    profile?: { name?: string; phone?: string },
+  ) => {
+    try {
+      await convexSignIn("password", {
+        email: email.trim().toLowerCase(),
+        password,
+        ...(profile?.name ? { name: profile.name } : {}),
+        ...(profile?.phone ? { phone: profile.phone } : {}),
+        flow: "signUp",
+      })
+      return { error: null }
+    } catch (error) {
+      return { error }
+    }
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    await convexSignOut()
   }
 
-  const value = {
-    user,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-  }
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, loading, profileMissing, signIn, signUp, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

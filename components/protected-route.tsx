@@ -1,11 +1,10 @@
 "use client"
 
 import type React from "react"
-
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "./auth-provider"
-import { getUserRBACContext, canAccessRoute, type RBACUser } from "@/lib/rbac"
+import { canAccessRoute, type RBACUser } from "@/lib/rbac"
 import { Loader2, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -17,47 +16,16 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRoute, fallbackRoute = "/" }: ProtectedRouteProps) {
-  const { user: authUser, loading: authLoading } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
-  const [rbacUser, setRbacUser] = useState<RBACUser | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [accessDenied, setAccessDenied] = useState(false)
 
   useEffect(() => {
-    async function checkAccess() {
-      if (authLoading) return
-
-      if (!authUser) {
-        router.push("/login")
-        return
-      }
-
-      try {
-        // Get user's RBAC context
-        const rbacContext = await getUserRBACContext(authUser.id)
-        setRbacUser(rbacContext)
-
-        // Check route access if required
-        if (requiredRoute && rbacContext) {
-          const hasAccess = canAccessRoute(rbacContext, requiredRoute)
-          if (!hasAccess) {
-            setAccessDenied(true)
-            setLoading(false)
-            return
-          }
-        }
-
-        setLoading(false)
-      } catch (error) {
-        console.error("Error checking route access:", error)
-        setLoading(false)
-      }
+    if (!loading && !user) {
+      router.push("/login")
     }
+  }, [user, loading, router])
 
-    checkAccess()
-  }, [authUser, authLoading, requiredRoute, router])
-
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex items-center gap-2">
@@ -67,6 +35,19 @@ export function ProtectedRoute({ children, requiredRoute, fallbackRoute = "/" }:
       </div>
     )
   }
+
+  // Build an RBAC context from the Convex-backed user.
+  const rbacUser: RBACUser | null = user
+    ? {
+        id: user.id,
+        role: user.role,
+        is_company_owner: user.isCompanyOwner,
+        company_account_id: user.companyId,
+      }
+    : null
+
+  const accessDenied =
+    !!requiredRoute && !!rbacUser && !canAccessRoute(rbacUser, requiredRoute)
 
   if (accessDenied) {
     return (

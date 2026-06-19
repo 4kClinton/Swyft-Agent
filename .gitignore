@@ -9,6 +9,9 @@
 
 # production
 /build
+/rules
+/scripts
+/.claude
 
 # debug
 npm-debug.log*

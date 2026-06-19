@@ -1,116 +1,102 @@
 "use client"
 
-import { useState } from "react"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { CreditCard, DollarSign, TrendingUp, TrendingDown, Smartphone, AlertCircle } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { DollarSign, TrendingUp, AlertCircle, Wallet } from "lucide-react"
+
+function pct(n: number) {
+  return `${Math.round(n * 100)}%`
+}
 
 export default function FinancesPage() {
-  const [showMpesaDialog, setShowMpesaDialog] = useState(true)
+  const stats = useQuery(api.analytics.dashboard)
+  const aging = useQuery(api.statements.arrearsAging)
+  const tenants = useQuery(api.tenants.list)
+
+  const tenantName = (id: string) =>
+    (tenants ?? []).find((t) => t._id === id)?.fullName ?? "Tenant"
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Financial Overview</h2>
-          <p className="text-muted-foreground">Track your property finances and transactions</p>
-        </div>
+    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">Financial Overview</h2>
+        <p className="text-muted-foreground">Collections, arrears and aging across your portfolio</p>
       </div>
 
-      {/* M-Pesa Integration Dialog */}
-      <Dialog open={showMpesaDialog} onOpenChange={setShowMpesaDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Smartphone className="h-5 w-5 text-green-600" />
-              M-Pesa Integration Required
-            </DialogTitle>
-            <DialogDescription>
-              Please integrate M-Pesa to have a complete financial overview of your properties.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col space-y-4 py-4">
-            <div className="flex items-center justify-center p-6 bg-green-50 rounded-lg">
-              <div className="text-center">
-                <Smartphone className="h-12 w-12 text-green-600 mx-auto mb-2" />
-                <p className="text-sm text-green-700">
-                  Connect your M-Pesa account to track payments, expenses, and generate financial reports.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button className="flex-1" onClick={() => setShowMpesaDialog(false)}>
-                Integrate M-Pesa
-              </Button>
-              <Button variant="outline" onClick={() => setShowMpesaDialog(false)}>
-                Maybe Later
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Placeholder Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="opacity-50">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Billed</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">---</div>
-            <p className="text-xs text-muted-foreground">Requires M-Pesa integration</p>
+            <div className="text-2xl font-bold">KES {(stats?.billed ?? 0).toLocaleString()}</div>
           </CardContent>
         </Card>
-        <Card className="opacity-50">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Income</CardTitle>
+            <CardTitle className="text-sm font-medium">Collected</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">KES {(stats?.collected ?? 0).toLocaleString()}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
+            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              KES {(stats?.outstanding ?? 0).toLocaleString()}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Collection rate</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">---</div>
-            <p className="text-xs text-muted-foreground">Requires M-Pesa integration</p>
-          </CardContent>
-        </Card>
-        <Card className="opacity-50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Expenses</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">---</div>
-            <p className="text-xs text-muted-foreground">Requires M-Pesa integration</p>
-          </CardContent>
-        </Card>
-        <Card className="opacity-50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Payments</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">---</div>
-            <p className="text-xs text-muted-foreground">Requires M-Pesa integration</p>
+            <div className="text-2xl font-bold">{pct(stats?.collectionRate ?? 0)}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Integration Notice */}
-      <Card className="border-orange-200 bg-orange-50">
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-orange-800">
-            <AlertCircle className="h-5 w-5" />
-            Financial Data Unavailable
-          </CardTitle>
-          <CardDescription className="text-orange-700">
-            Connect your M-Pesa account to view detailed financial analytics, transaction history, and generate reports.
-          </CardDescription>
+          <CardTitle>Arrears aging</CardTitle>
+          <CardDescription>Outstanding balances bucketed by age (0–30 / 31–60 / 60+ days)</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button className="bg-green-600 hover:bg-green-700">
-            <Smartphone className="mr-2 h-4 w-4" />
-            Integrate M-Pesa Now
-          </Button>
+          {aging === undefined ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : aging.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No outstanding arrears. 🎉</p>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-5 gap-2 text-xs font-medium text-muted-foreground border-b pb-2">
+                <span className="col-span-2">Tenant</span>
+                <span>0–30</span>
+                <span>31–60</span>
+                <span>60+</span>
+              </div>
+              {aging.map((row) => (
+                <div key={row.tenantId} className="grid grid-cols-5 gap-2 text-sm items-center">
+                  <span className="col-span-2 font-medium truncate">{tenantName(row.tenantId)}</span>
+                  <span>{row.bucket0.toLocaleString()}</span>
+                  <span>{row.bucket30.toLocaleString()}</span>
+                  <span className="flex items-center gap-2">
+                    {row.bucket60.toLocaleString()}
+                    {row.bucket60 > 0 && <Badge className="bg-red-100 text-red-800">late</Badge>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

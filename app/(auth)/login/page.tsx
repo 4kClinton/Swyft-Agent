@@ -10,9 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Building2, AlertCircle, Eye, EyeOff } from "lucide-react"
-import { signIn } from "@/lib/auth"
-import { getUserRBACContext } from "@/lib/rbac"
+import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
+import { SwyftLogo } from "@/components/swyft-logo"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -21,6 +21,7 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
+  const { signIn } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,25 +29,15 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { data, error: signInError } = await signIn(email, password)
+      const { error: signInError } = await signIn(email, password)
 
       if (signInError) {
-        setError(signInError.message)
+        setError(signInError.message ?? "Invalid email or password")
         return
       }
 
-      if (data?.user) {
-        // Get user's RBAC context to verify they have proper access
-        const rbacContext = await getUserRBACContext(data.user.id)
-
-        if (!rbacContext) {
-          setError("Unable to load user permissions. Please contact your administrator.")
-          return
-        }
-
-        // Successful login - redirect to dashboard
-        router.push("/")
-      }
+      // Successful login - redirect to dashboard
+      router.push("/dashboard")
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred")
     } finally {
@@ -59,8 +50,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
-            <Building2 className="h-8 w-8 text-green-600" />
-            <span className="ml-2 text-2xl font-bold text-gray-900">Swyft Agent</span>
+            <SwyftLogo className="h-11 w-auto" priority />
           </div>
           <CardTitle className="text-2xl text-center">Sign in to your account</CardTitle>
           <CardDescription className="text-center">

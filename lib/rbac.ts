@@ -1,5 +1,3 @@
-import { supabase } from "./supabase"
-
 export type AccessLevel = "none" | "read" | "write" | "delete" | "manage" | "admin"
 export type Module =
   | "properties"
@@ -146,29 +144,6 @@ export function canAccessRoute(user: RBACUser | null, route: string): boolean {
   }
 
   return hasAccess(user, routeConfig.module, routeConfig.level)
-}
-
-/**
- * Get user's RBAC context from database
- */
-export async function getUserRBACContext(userId: string): Promise<RBACUser | null> {
-  try {
-    const { data, error } = await supabase
-      .from("users")
-      .select("id, role, is_company_owner, access, company_account_id")
-      .eq("id", userId)
-      .single()
-
-    if (error) {
-      console.error("Error fetching user RBAC context:", error)
-      return null
-    }
-
-    return data
-  } catch (error) {
-    console.error("Error in getUserRBACContext:", error)
-    return null
-  }
 }
 
 /**
