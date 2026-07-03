@@ -594,6 +594,30 @@ function Pricing() {
 }
 
 /* ------------------------------------------------------------- Waitlist */
+// WhatsApp Business number that receives waitlist submissions (no "+" for wa.me).
+const WAITLIST_WHATSAPP = "254796652112"
+
+function openWhatsApp(form: {
+  name: string
+  phone: string
+  units: string
+  bankUsed: string
+  role: string
+}) {
+  const lines = [
+    "New Swyft waitlist signup",
+    "",
+    `Name: ${form.name}`,
+    `Phone (M-Pesa): ${form.phone}`,
+    form.units ? `Units: ${form.units}` : null,
+    form.role ? `Role: ${form.role}` : null,
+    form.bankUsed ? `Bank/rail: ${form.bankUsed}` : null,
+  ].filter(Boolean)
+
+  const url = `https://wa.me/${WAITLIST_WHATSAPP}?text=${encodeURIComponent(lines.join("\n"))}`
+  window.open(url, "_blank", "noopener,noreferrer")
+}
+
 function Waitlist() {
   const join = useMutation(api.waitlist.join)
   const [submitting, setSubmitting] = useState(false)
@@ -615,6 +639,7 @@ function Waitlist() {
         bankUsed: form.bankUsed || undefined,
         role: form.role || undefined,
       })
+      openWhatsApp(form)
       setDone(true)
       toast.success("You're on the list — we'll be in touch.")
     } catch (err: any) {
