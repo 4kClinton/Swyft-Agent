@@ -13,6 +13,7 @@ export interface AppUser {
   role?: string
   isCompanyOwner?: boolean
   companyId?: string
+  companyName?: string
   // "landlord" | "property_manager" — gates the admin/team area.
   companyKind?: string
 }
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: me?.profile?.role,
         isCompanyOwner: me?.profile?.isCompanyOwner,
         companyId: me?.profile?.companyId,
+        companyName: me?.company?.name,
         companyKind: me?.company?.kind,
       }
     : null

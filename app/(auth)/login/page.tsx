@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { SwyftLogo } from "@/components/swyft-logo"
+import { VantaBackground } from "@/components/vanta-background"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -46,11 +47,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background py-12 px-4 sm:px-6 lg:px-8">
+      <VantaBackground className="absolute inset-0" />
+      <Card className="relative z-10 w-full max-w-md border-border/50 bg-card/80 shadow-2xl backdrop-blur-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
-            <SwyftLogo className="h-11 w-auto" priority />
+            <SwyftLogo className="h-9 w-auto" priority />
           </div>
           <CardTitle className="text-2xl text-center">Sign in to your account</CardTitle>
           <CardDescription className="text-center">
@@ -108,12 +110,12 @@ export default function LoginPage() {
               Sign In
             </Button>
             <div className="text-sm text-center space-y-2">
-              <Link href="/forgot-password" className="text-green-600 hover:underline">
+              <Link href="/forgot-password" className="text-primary hover:underline">
                 Forgot your password?
               </Link>
               <div>
                 Don't have an account?{" "}
-                <Link href="/signup" className="text-green-600 hover:underline">
+                <Link href="/signup" className="text-primary hover:underline">
                   Sign up
                 </Link>
               </div>

@@ -328,3 +328,10 @@ export function generateSampleInvoice(): InvoiceData {
     notes: "Payment is due within 30 days. Late payments may incur additional charges.",
   }
 }
+
+// Generate a unique, human-readable invoice number (e.g. INV-20240131-4821).
+export function generateInvoiceNumber(): string {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "")
+  const suffix = Math.floor(1000 + Math.random() * 9000)
+  return `INV-${date}-${suffix}`
+}

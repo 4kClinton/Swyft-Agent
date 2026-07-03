@@ -7,6 +7,23 @@ export interface EmailAttachment {
   content: string; // base64
 }
 
+/** Base64-encode bytes (for email attachments) — works in the Convex runtime. */
+export function bytesToBase64(bytes: Uint8Array): string {
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i];
+    const b1 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+    const b2 = i + 2 < bytes.length ? bytes[i + 2] : 0;
+    out += chars[b0 >> 2];
+    out += chars[((b0 & 3) << 4) | (b1 >> 4)];
+    out += i + 1 < bytes.length ? chars[((b1 & 15) << 2) | (b2 >> 6)] : "=";
+    out += i + 2 < bytes.length ? chars[b2 & 63] : "=";
+  }
+  return out;
+}
+
 /** Send an email via Resend. Returns true on a 2xx response. */
 export async function sendResendEmail(opts: {
   apiKey: string;

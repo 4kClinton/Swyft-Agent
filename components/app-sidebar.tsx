@@ -18,6 +18,8 @@ import {
   Truck,
   CreditCard,
   Megaphone,
+  Upload,
+  Database,
 } from "lucide-react"
 
 import {
@@ -163,6 +165,11 @@ const getMenuItems = (userRole: string, companyKind?: string) => {
               url: "/ads",
               icon: Megaphone,
             },
+            {
+              title: "Import Data",
+              url: "/import",
+              icon: Database,
+            },
           ],
         },
         {
@@ -182,6 +189,11 @@ const getMenuItems = (userRole: string, companyKind?: string) => {
               title: "Payments",
               url: "/payments",
               icon: CreditCard,
+            },
+            {
+              title: "Upload Statement",
+              url: "/statements",
+              icon: Upload,
             },
             {
               title: "Invoices",
@@ -208,6 +220,16 @@ const getMenuItems = (userRole: string, companyKind?: string) => {
         {
           title: "Properties",
           items: [
+            // Landlords (property owners) are a property-manager-only concept.
+            ...(isPropertyManager
+              ? [
+                  {
+                    title: "Landlords",
+                    url: "/landlords",
+                    icon: User,
+                  },
+                ]
+              : []),
             {
               title: "Buildings",
               url: "/buildings",
@@ -227,6 +249,11 @@ const getMenuItems = (userRole: string, companyKind?: string) => {
               title: "Ads",
               url: "/ads",
               icon: Megaphone,
+            },
+            {
+              title: "Import Data",
+              url: "/import",
+              icon: Database,
             },
           ],
         },
@@ -252,6 +279,11 @@ const getMenuItems = (userRole: string, companyKind?: string) => {
               title: "Payments",
               url: "/payments",
               icon: CreditCard,
+            },
+            {
+              title: "Upload Statement",
+              url: "/statements",
+              icon: Upload,
             },
             {
               title: "Invoices",
@@ -346,8 +378,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-gray-200 bg-white shadow-sm" {...props}>
-      <SidebarHeader className="border-b border-gray-100 bg-white">
+    <Sidebar collapsible="icon" className="border-r border-border bg-card shadow-sm" {...props}>
+      <SidebarHeader className="border-b border-border bg-card">
         <div className="flex items-center gap-2 px-2 py-2">
           <SwyftLogo className="h-7 w-auto" priority />
         </div>
@@ -359,13 +391,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="bg-white">
+      <SidebarContent className="bg-card">
         {menuItems.map((item) => (
           <SidebarGroup key={item.title}>
-            <SidebarGroupLabel className="text-gray-600 font-medium">{item.title}</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-muted-foreground font-medium">{item.title}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {item.url ? (
+                {"url" in item ? (
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       asChild
@@ -398,21 +430,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-gray-100 bg-white">
+      <SidebarFooter className="border-t border-border bg-card">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
-                  className="data-[state=open]:bg-green-50 data-[state=open]:text-green-700 hover:bg-green-50 hover:text-green-700"
+                  className="text-foreground hover:bg-green-50 hover:text-green-700 data-[state=open]:bg-green-50 data-[state=open]:text-green-700 dark:hover:bg-green-950 dark:hover:text-green-400 dark:data-[state=open]:bg-green-950 dark:data-[state=open]:text-green-400"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
-                    <User className="h-4 w-4 text-green-600" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-950">
+                    <User className="h-4 w-4 text-green-600 dark:text-green-400" />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold text-gray-900">{getDisplayName()}</span>
-                    <span className="truncate text-xs text-gray-500">
+                    <span className="truncate font-semibold">{getDisplayName()}</span>
+                    <span className="truncate text-xs text-muted-foreground">
                       {loading ? "Loading..." : getRoleDisplayName(userRole)}
                     </span>
                   </div>
@@ -420,18 +452,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="z-[9999] w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg bg-white border border-gray-200 shadow-lg"
+                className="z-[9999] w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg bg-card border border-border shadow-lg"
                 side="bottom"
                 align="end"
                 sideOffset={4}
               >
-                <DropdownMenuItem asChild className="hover:bg-green-50">
+                <DropdownMenuItem asChild className="hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-950 dark:hover:text-green-400">
                   <Link href="/profile">
                     <User className="mr-2 h-4 w-4" />
                     Profile
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => signOut()} className="hover:bg-red-50 text-red-600">
+                <DropdownMenuItem onClick={() => signOut()} className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950">
                   <LogOut className="mr-2 h-4 w-4" />
                   Sign out
                 </DropdownMenuItem>

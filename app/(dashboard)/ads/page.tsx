@@ -13,15 +13,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { EmptyState } from "@/components/empty-state"
-import { Megaphone, Plus, Loader2, Rocket, Upload, Sparkles } from "lucide-react"
+import { Megaphone, Plus, Loader2, Rocket, Upload, Sparkles, EyeOff } from "lucide-react"
 import { unitTypeLabel } from "@/components/building-unit-picker"
 import { toast } from "sonner"
 import type { Id } from "@/convex/_generated/dataModel"
 
 const statusColor: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
+  draft: "bg-muted text-foreground",
   published: "bg-emerald-100 text-emerald-800",
   taken: "bg-blue-100 text-blue-800",
+  unlisted: "bg-muted text-muted-foreground",
   error: "bg-red-100 text-red-800",
 }
 
@@ -30,6 +31,7 @@ export default function AdsPage() {
   const buildings = useQuery(api.buildings.list)
   const createTypeListing = useMutation(api.marketplace.createTypeListing)
   const publish = useAction(api.marketplace.publish)
+  const takedown = useMutation(api.marketplace.takedown)
   const createBoost = useMutation(api.boosts.create)
   const payBoost = useAction(api.boosts.payWithMpesa)
 
@@ -61,18 +63,21 @@ export default function AdsPage() {
     if (!form.rentAmount) return toast.error("Set the rent")
     setSaving(true)
     try {
-      await createTypeListing({
+      const listingId = await createTypeListing({
         buildingId: form.buildingId as Id<"buildings">,
         unitType: form.unitType,
         rentAmount: Number(form.rentAmount),
         title: form.title || undefined,
         description: form.description || undefined,
       })
-      toast.success("Ad created as a draft. Publish it to go live on Swyft.")
+      // Go live immediately — no separate "publish" step. This pushes a capture
+      // job to Swyft, which notifies the official account to go record the unit.
+      await publish({ listingId })
+      toast.success("Listed on Swyft 🎉 — our team will record this unit.")
       setCreateOpen(false)
       setForm({ buildingId: "", unitType: "", rentAmount: "", title: "", description: "" })
     } catch (err: any) {
-      toast.error(err?.message ?? "Failed to create ad")
+      toast.error(err?.message ?? "Failed to list on Swyft")
     } finally {
       setSaving(false)
     }
@@ -85,6 +90,18 @@ export default function AdsPage() {
       toast.success("Published to Swyft 🎉")
     } catch (err: any) {
       toast.error(err?.message ?? "Failed to publish")
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleTakedown = async (id: Id<"vacantListings">) => {
+    setBusyId(id)
+    try {
+      await takedown({ listingId: id })
+      toast.success("Taken down — removed from Swyft")
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to take down")
     } finally {
       setBusyId(null)
     }
@@ -150,7 +167,7 @@ export default function AdsPage() {
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <Badge className={statusColor[l.status] ?? "bg-gray-100"}>{l.status}</Badge>
+                    <Badge className={statusColor[l.status] ?? "bg-muted"}>{l.status}</Badge>
                     {l.boosted && (
                       <Badge className="bg-amber-100 text-amber-800 gap-1"><Sparkles className="h-3 w-3" />Boosted on Swyft</Badge>
                     )}
@@ -161,12 +178,17 @@ export default function AdsPage() {
                 <div className="font-semibold">KES {l.rentAmount.toLocaleString()}/mo</div>
                 {l.description && <p className="text-sm text-muted-foreground line-clamp-2">{l.description}</p>}
                 <div className="flex gap-2">
-                  {l.status !== "published" && l.status !== "taken" && (
+                  {l.status === "published" ? (
+                    <Button size="sm" variant="outline" className="flex-1" disabled={busyId === l._id} onClick={() => handleTakedown(l._id)}>
+                      {busyId === l._id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <EyeOff className="mr-2 h-4 w-4" />}
+                      Take down
+                    </Button>
+                  ) : l.status !== "taken" ? (
                     <Button size="sm" variant="outline" className="flex-1" disabled={busyId === l._id} onClick={() => handlePublish(l._id)}>
                       {busyId === l._id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                      Publish
+                      {l.status === "unlisted" ? "Re-list" : "Publish"}
                     </Button>
-                  )}
+                  ) : null}
                   <Button size="sm" className="flex-1" disabled={l.boosted} onClick={() => setBoostFor(l._id)}>
                     <Rocket className="mr-2 h-4 w-4" />{l.boosted ? "Boosted" : "Boost"}
                   </Button>
@@ -182,7 +204,7 @@ export default function AdsPage() {
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>Create ad</DialogTitle>
-            <DialogDescription>Advertise a vacant unit type from one of your buildings.</DialogDescription>
+            <DialogDescription>List a vacant unit type on Swyft. Our team records it on-site — make sure the building has a map pin set.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
@@ -223,7 +245,7 @@ export default function AdsPage() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create</Button>
+              <Button type="submit" disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}List on Swyft</Button>
             </DialogFooter>
           </form>
         </DialogContent>

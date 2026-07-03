@@ -29,4 +29,13 @@ crons.cron(
   {},
 );
 
+// Monthly landlord performance reports — 1st of the month, 07:00 EAT (04:00 UTC).
+// The runner reports the previous month and respects each landlord's cadence.
+crons.cron(
+  "monthly landlord reports",
+  "0 4 1 * *",
+  internal.reports.runMonthlyLandlordReports,
+  {},
+);
+
 export default crons;

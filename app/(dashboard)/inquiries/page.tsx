@@ -12,7 +12,7 @@ import { toast } from "sonner"
 const statusColor: Record<string, string> = {
   new: "bg-blue-100 text-blue-800",
   responded: "bg-emerald-100 text-emerald-800",
-  closed: "bg-gray-100 text-gray-800",
+  closed: "bg-muted text-foreground",
   spam: "bg-red-100 text-red-800",
 }
 

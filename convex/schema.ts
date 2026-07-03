@@ -38,6 +38,41 @@ export const matchStateValidator = v.union(
   v.literal("unmatched"),
   v.literal("auto_matched"),
   v.literal("manual_matched"),
+  // Verify-back could not confirm the credit with Jenga's query API (or that
+  // API isn't wired yet) and the amount is above the verify-back threshold:
+  // held for a human instead of being auto-reconciled.
+  v.literal("needs_review"),
+);
+
+// A payment source may route/backfill/reconcile observed payments ONLY once its
+// ownership is verified. New rows start "pending"; legacy rows (no `status`) are
+// grandfathered as verified — see lib/paymentSource.ts:isVerifiedSource.
+export const paymentSourceStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("verified"),
+  v.literal("rejected"),
+);
+
+// How a source's ownership was proven.
+export const verificationMethodValidator = v.union(
+  v.literal("recent_credit"), // claimant confirmed amount+ref of an observed credit
+  v.literal("statement_upload"), // bank statement + manual admin approval
+  v.literal("admin_manual"), // out-of-band admin override
+);
+
+// Lifecycle of an uploaded bank-statement import. Rows are parsed into a
+// staging area first ("parsed"), previewed by the landlord, then fed through
+// the live reconciliation engine on confirm ("committed").
+export const statementBatchStatusValidator = v.union(
+  v.literal("extracting"),
+  v.literal("parsed"),
+  v.literal("committed"),
+  v.literal("failed"),
+);
+
+export const statementDirectionValidator = v.union(
+  v.literal("credit"),
+  v.literal("debit"),
 );
 
 export const invoiceStatusValidator = v.union(
@@ -45,6 +80,39 @@ export const invoiceStatusValidator = v.union(
   v.literal("partial"),
   v.literal("paid"),
   v.literal("void"),
+);
+
+// --- Smart data-migration (CSV/Excel onboarding import) -----------------
+// Lifecycle of an uploaded migration file. Raw is captured first, rows are
+// AI-mapped into a staging area, the user previews/confirms, then commit writes
+// in dependency order. `partially_committed` = some rows committed, others left
+// parked for the user to resolve. Nothing is ever auto-deleted.
+export const importBatchStatusValidator = v.union(
+  v.literal("parsing"),
+  v.literal("parsed"),
+  v.literal("partially_committed"),
+  v.literal("committed"),
+  v.literal("failed"),
+);
+
+// The importable entities, plus `unknown` for sheets/rows the AI couldn't
+// classify (parked, never dropped). `landlord` is the property-manager owner
+// layer: a building row references its owner by `landlordName` natural key.
+export const importEntityValidator = v.union(
+  v.literal("landlord"),
+  v.literal("building"),
+  v.literal("unit"),
+  v.literal("tenant"),
+  v.literal("lease"),
+  v.literal("unknown"),
+);
+
+// `parked` = unknown/invalid/needs attention (survives commit); `ready` = valid
+// & eligible for commit; `committed` = written.
+export const importRowStateValidator = v.union(
+  v.literal("parked"),
+  v.literal("ready"),
+  v.literal("committed"),
 );
 
 // ---------------------------------------------------------------------------
@@ -123,8 +191,35 @@ export default defineSchema({
   }).index("by_phone", ["phone"]),
 
   // --- Portfolio ----------------------------------------------------------
+  // Property-owner clients of a property-manager company. For landlord-kind
+  // companies the owner is implicit (the company itself) and this table is
+  // unused — buildings simply leave `landlordId` empty. Landlords are pure data
+  // records: they have NO login/portal; reports are pushed to them via
+  // `reportChannel`. See [[pm-landlord-layer]].
+  landlords: defineTable({
+    companyId: v.id("companyAccounts"),
+    name: v.string(),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    nationalId: v.optional(v.string()),
+    kraPin: v.optional(v.string()),
+    nextOfKinName: v.optional(v.string()),
+    nextOfKinPhone: v.optional(v.string()),
+    // How/how often the owner receives pushed performance reports.
+    reportChannel: v.optional(
+      v.union(v.literal("email"), v.literal("whatsapp"), v.literal("sms")),
+    ),
+    reportCadence: v.optional(
+      v.union(v.literal("monthly"), v.literal("quarterly")),
+    ),
+    status: v.union(v.literal("active"), v.literal("inactive")),
+  }).index("by_company", ["companyId"]),
+
   buildings: defineTable({
     companyId: v.id("companyAccounts"),
+    // The owning landlord (property-manager companies only). Optional: absent on
+    // landlord-kind companies (implicit self-owner) and on legacy rows.
+    landlordId: v.optional(v.id("landlords")),
     name: v.string(),
     address: v.optional(v.string()),
     city: v.optional(v.string()),
@@ -145,6 +240,9 @@ export default defineSchema({
     totalUnits: v.optional(v.number()),
     latitude: v.optional(v.number()),
     longitude: v.optional(v.number()),
+    // Free-text landmark directions for the Swyft field team capturing the unit
+    // ("blue gate opposite the shop"). Sent in the capture-job sync payload.
+    directions: v.optional(v.string()),
     amenities: v.optional(v.array(v.string())),
     // Composition summary: how many units of each type the building consists of,
     // with an optional indicative monthly rent per type. Not the canonical
@@ -158,7 +256,17 @@ export default defineSchema({
         }),
       ),
     ),
-  }).index("by_company", ["companyId"]),
+    // Marketplace media captured at building creation. `mediaKeyPrefix` is a
+    // client-generated UUID: the building image lives under `<prefix>_building`
+    // and each unit type's video + images under `<prefix>_type_<type>` in the
+    // swyft-customer deployment. Sent in the publish payload so the customer app
+    // can auto-publish a reel from the pre-recorded media. `imageUrl` is the
+    // building cover's customer-served URL, kept only for our own dashboard.
+    mediaKeyPrefix: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_landlord", ["landlordId"]),
 
   units: defineTable({
     companyId: v.id("companyAccounts"),
@@ -197,6 +305,9 @@ export default defineSchema({
       v.literal("draft"),
       v.literal("published"),
       v.literal("taken"),
+      // Manually pulled off the marketplace by the manager (distinct from
+      // "taken", which means a renter took the unit). Auto retire/reopen skips it.
+      v.literal("unlisted"),
       v.literal("error"),
     ),
     boostId: v.optional(v.id("boosts")),
@@ -226,6 +337,17 @@ export default defineSchema({
     // Opening balance brought forward for tenants migrated mid-tenancy.
     arrearsBroughtForward: v.optional(v.number()),
     notes: v.optional(v.string()),
+    // Extended profile (captured at import or edited later).
+    kraPin: v.optional(v.string()),
+    dateOfBirth: v.optional(v.string()), // free-form/ISO; not parsed to epoch
+    gender: v.optional(v.string()),
+    occupation: v.optional(v.string()),
+    employer: v.optional(v.string()),
+    emergencyContactName: v.optional(v.string()),
+    emergencyContactPhone: v.optional(v.string()),
+    emergencyContactRelation: v.optional(v.string()),
+    // URL of the signed tenancy agreement (uploaded file or external link).
+    tenantAgreementUrl: v.optional(v.string()),
   })
     .index("by_company", ["companyId"])
     .index("by_company_and_phone", ["companyId", "phone"])
@@ -251,6 +373,77 @@ export default defineSchema({
     .index("by_company_and_billingDay", ["companyId", "billingDay"])
     // System-wide cron scans leases due today regardless of company.
     .index("by_billingDay_and_status", ["billingDay", "status"]),
+
+  // Signed tenancy/lease agreements. Canonical scope is the tenant (+ the lease
+  // term); a tenant accrues a new row on each renewal. Replaces the thin
+  // `tenants.tenantAgreementUrl` (kept for back-compat — a non-empty value is
+  // treated as an implicit "tenancy" agreement when no row exists here). The
+  // file is either an uploaded PDF (`storageId`) or an external link
+  // (`externalUrl`). See [[pm-landlord-layer]].
+  agreements: defineTable({
+    companyId: v.id("companyAccounts"),
+    tenantId: v.id("tenants"),
+    leaseId: v.optional(v.id("leases")),
+    storageId: v.optional(v.id("_storage")),
+    externalUrl: v.optional(v.string()),
+    fileName: v.optional(v.string()),
+    signedAt: v.optional(v.number()),
+    kind: v.union(
+      v.literal("tenancy"),
+      v.literal("lease"),
+      v.literal("other"),
+    ),
+  })
+    .index("by_tenant", ["tenantId"])
+    .index("by_company", ["companyId"])
+    .index("by_lease", ["leaseId"]),
+
+  // Bulk agreement migration: PDFs whose filename couldn't be matched to a tenant
+  // are parked here (never dropped — see [[never-lose-import-data]]) for the user
+  // to assign manually. Matched files become `agreements` rows directly. The
+  // stored file lives in `_storage` until resolved or discarded.
+  pendingAgreements: defineTable({
+    companyId: v.id("companyAccounts"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    // What we parsed from the filename but couldn't resolve (shown to the user).
+    guessedPhone: v.optional(v.string()),
+  }).index("by_company", ["companyId"]),
+
+  // Auditable record of operational reports PUSHED to a landlord (no portal —
+  // see [[pm-landlord-layer]]). One row per (landlord, period, send). Mirrors the
+  // `noticeRecipients` pattern. `summary` caches the headline metrics so the
+  // history reads without recomputing.
+  reportDeliveries: defineTable({
+    companyId: v.id("companyAccounts"),
+    landlordId: v.id("landlords"),
+    period: v.string(), // "2026-06"
+    storageId: v.optional(v.id("_storage")), // the generated PDF
+    channel: v.optional(
+      v.union(v.literal("email"), v.literal("whatsapp"), v.literal("sms")),
+    ),
+    recipient: v.optional(v.string()), // email / phone the report went to
+    state: v.union(
+      v.literal("generated"), // PDF built, not yet sent
+      v.literal("sent"),
+      v.literal("failed"),
+      v.literal("skipped"), // no channel/recipient configured
+    ),
+    sentAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    summary: v.optional(
+      v.object({
+        buildings: v.number(),
+        units: v.number(),
+        occupied: v.number(),
+        vacant: v.number(),
+        expectedMonthlyRent: v.number(),
+        arrears: v.number(),
+      }),
+    ),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_landlord", ["landlordId"]),
 
   // --- Money: invoices, payments, allocations, receipts -------------------
   invoices: defineTable({
@@ -294,6 +487,18 @@ export default defineSchema({
     paybill: v.optional(v.string()), // e.g. "277277"
     label: v.optional(v.string()),
     active: v.boolean(),
+    // Ownership verification. New rows are inserted status="pending", active=false
+    // and route/backfill/reconcile NOTHING until proven. Absent on legacy rows,
+    // which are grandfathered as verified (isVerifiedSource). Only a VERIFIED
+    // source locks an accountNumber; multiple pending claims may coexist.
+    status: v.optional(paymentSourceStatusValidator),
+    verificationMethod: v.optional(verificationMethodValidator),
+    verifiedAt: v.optional(v.number()),
+    // Brute-force guard for the "confirm a recent credit" challenge, scoped to
+    // this pending claim (one claim per company+account). Cleared on success.
+    verifyAttempts: v.optional(v.number()),
+    verifyWindowStart: v.optional(v.number()),
+    verifyLockedUntil: v.optional(v.number()),
     // Authorisation record (Part F: "read-only authorisation record per landlord").
     authorisedBy: v.optional(v.id("profiles")),
     authorisedAt: v.optional(v.number()),
@@ -324,6 +529,16 @@ export default defineSchema({
     .index("by_account", ["account"])
     .index("by_company", ["companyId"])
     .index("by_company_and_matchState", ["companyId", "matchState"]),
+
+  // Raw IPN capture for the first ~50 notifications per adapter, so we can
+  // confirm WHICH payload field actually carries the credited account number
+  // (Jenga's field table is internally inconsistent) before trusting extraction
+  // in production. Capped by the ingest path; intentionally NOT company-scoped.
+  ipnDebug: defineTable({
+    source: v.string(), // "jenga" | "kcb" | ...
+    extractedAccount: v.optional(v.string()), // what our parser chose
+    raw: v.any(), // verbatim payload
+  }).index("by_source", ["source"]),
 
   // Learned payer-phone → tenant mapping (self-improving matcher).
   phoneTenantMap: defineTable({
@@ -362,6 +577,91 @@ export default defineSchema({
     .index("by_company", ["companyId"])
     .index("by_payment", ["paymentId"])
     .index("by_number", ["number"]),
+
+  // --- Statement-upload front (deterministic bank-statement import) -------
+  // One row per uploaded statement. Holds the parsed transactions in a staging
+  // area so the landlord can preview before anything is reconciled. The raw PDF
+  // is NEVER persisted — it's deleted from storage immediately after extraction.
+  statementBatches: defineTable({
+    companyId: v.id("companyAccounts"),
+    // Optional building the statement's account belongs to (routing aid).
+    buildingId: v.optional(v.id("buildings")),
+    // The account number the credit rows route to (paymentSources.accountNumber).
+    account: v.string(),
+    source: v.literal("equity"), // first (and only) supported adapter
+    status: statementBatchStatusValidator,
+    fileName: v.optional(v.string()),
+    rowCount: v.number(),
+    creditCount: v.number(),
+    error: v.optional(v.string()),
+    committedAt: v.optional(v.number()),
+  }).index("by_company", ["companyId"]),
+
+  // Child rows of a statementBatch (split out: an unbounded list must not live
+  // inside the parent document — Convex 1MB / rewrite-on-update rule).
+  statementRows: defineTable({
+    companyId: v.id("companyAccounts"),
+    batchId: v.id("statementBatches"),
+    date: v.number(),
+    amount: v.number(),
+    direction: statementDirectionValidator,
+    ref: v.string(),
+    payerName: v.optional(v.string()),
+    payerPhone: v.optional(v.string()),
+    rawLine: v.string(), // reconstructed source line, for audit/debugging
+    include: v.boolean(), // preview toggle; only included credits are committed
+    paymentId: v.optional(v.id("payments")), // set once committed
+  }).index("by_batch", ["batchId"]),
+
+  // --- Smart data-migration staging (CSV/Excel onboarding import) ---------
+  // One row per uploaded file. The ORIGINAL file is retained in `_storage`
+  // (`rawStorageId`) — unlike statement uploads, this is the user's portfolio
+  // data (an asset, not a liability), so we never delete it. `parkedCount`
+  // tracks rows that still need attention after a (partial) commit.
+  importBatches: defineTable({
+    companyId: v.id("companyAccounts"),
+    status: importBatchStatusValidator,
+    fileName: v.optional(v.string()),
+    rawStorageId: v.optional(v.id("_storage")),
+    rowCount: v.number(),
+    committedCount: v.number(),
+    parkedCount: v.number(),
+    error: v.optional(v.string()),
+    createdBy: v.optional(v.id("profiles")),
+  }).index("by_company", ["companyId"]),
+
+  // Child rows of an importBatch. `rawRow` is the VERBATIM source row (never
+  // mutated), `data` is the AI-mapped shape, `extra` holds unmapped columns
+  // (preserved, never dropped), `naturalKeys` carry references resolved at
+  // commit. Nothing is lost: unclassifiable/invalid rows are `parked`.
+  importRows: defineTable({
+    companyId: v.id("companyAccounts"),
+    batchId: v.id("importBatches"),
+    // Which uploaded sheet the row came from — lets re-parse regroup by sheet
+    // and lets the user override a misdetected sheet's entity type.
+    sheetName: v.optional(v.string()),
+    entityType: importEntityValidator,
+    rawRow: v.any(), // verbatim source row
+    data: v.any(), // mapped onto our schema
+    extra: v.any(), // unmapped source columns, preserved
+    naturalKeys: v.object({
+      // Building rows reference their owner by name (resolved to landlordId at
+      // commit, after landlord rows are committed first).
+      landlordName: v.optional(v.string()),
+      buildingName: v.optional(v.string()),
+      unitNumber: v.optional(v.string()),
+      tenantPhone: v.optional(v.string()),
+    }),
+    rowState: importRowStateValidator,
+    include: v.boolean(), // preview toggle
+    validation: v.object({
+      ok: v.boolean(),
+      message: v.optional(v.string()),
+    }),
+    resultId: v.optional(v.string()), // id of the created record, once committed
+  })
+    .index("by_batch", ["batchId"])
+    .index("by_batch_and_state", ["batchId", "rowState"]),
 
   // Monotonic counters (receipt numbers, etc.) — avoids count() scans.
   counters: defineTable({

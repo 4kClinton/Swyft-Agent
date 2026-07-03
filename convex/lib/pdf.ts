@@ -51,6 +51,29 @@ export interface InvoicePdfData {
   issuedAt: number;
 }
 
+export interface LandlordReportData {
+  company: DocCompany;
+  landlord: { name: string; phone?: string; email?: string };
+  period: string; // "2026-06"
+  metrics: {
+    buildings: number;
+    units: number;
+    occupied: number;
+    vacant: number;
+    occupancyRate: number; // 0..1
+    expectedMonthlyRent: number;
+    arrears: number;
+  };
+  buildings: {
+    name: string;
+    units: number;
+    occupied: number;
+    vacant: number;
+    expectedRent: number;
+    arrears: number;
+  }[];
+}
+
 function base64ToBytes(b64: string): Uint8Array {
   const chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -271,6 +294,90 @@ export async function buildInvoicePdf(d: InvoicePdfData): Promise<Uint8Array> {
   rightText(page, bold, kes(d.balance), right, y - 1, 14, d.balance <= 0 ? BRAND : INK);
   y -= 22;
   page.drawText(`Status: ${clean(d.status)}`, { x: MARGIN, y, size: 9, font, color: MUTED });
+
+  drawFooter(page, font);
+  return await pdf.save();
+}
+
+// Pretty "2026-06" → "June 2026".
+function fmtPeriod(period: string): string {
+  const [y, m] = period.split("-").map(Number);
+  if (!y || !m) return period;
+  const name = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-GB", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return name;
+}
+
+export async function buildLandlordReportPdf(d: LandlordReportData): Promise<Uint8Array> {
+  const { pdf, page, font, bold, right, y: y0 } = await startDoc("PORTFOLIO REPORT", d.company);
+
+  rightText(page, bold, fmtPeriod(d.period), right, y0 + 8, 11, INK);
+  rightText(page, font, `Generated ${fmtDate(Date.now())}`, right, y0 - 6, 9, MUTED);
+
+  // Prepared-for block.
+  let y = y0;
+  page.drawText("PREPARED FOR", { x: MARGIN, y, size: 8, font: bold, color: MUTED });
+  y -= 15;
+  page.drawText(clean(d.landlord.name) || "Landlord", { x: MARGIN, y, size: 12, font: bold, color: INK });
+  y -= 14;
+  for (const s of [d.landlord.phone, d.landlord.email].map((x) => clean(x ?? "")).filter(Boolean)) {
+    page.drawText(s, { x: MARGIN, y, size: 9, font, color: MUTED });
+    y -= 12;
+  }
+  y -= 16;
+
+  // Summary metrics (two-column key/value grid).
+  const m = d.metrics;
+  const pct = `${Math.round(m.occupancyRate * 100)}%`;
+  const summary: [string, string][] = [
+    ["Buildings", String(m.buildings)],
+    ["Units", String(m.units)],
+    ["Occupied", String(m.occupied)],
+    ["Vacant", String(m.vacant)],
+    ["Occupancy", pct],
+    ["Expected monthly rent", kes(m.expectedMonthlyRent)],
+    ["Outstanding arrears", kes(m.arrears)],
+  ];
+  page.drawText("SUMMARY", { x: MARGIN, y, size: 8, font: bold, color: MUTED });
+  y -= 8;
+  page.drawLine({ start: { x: MARGIN, y }, end: { x: right, y }, thickness: 1, color: LINE });
+  y -= 18;
+  for (const [k, val] of summary) {
+    page.drawText(k, { x: MARGIN, y, size: 10, font, color: INK });
+    rightText(page, bold, val, right, y, 10, k === "Outstanding arrears" && m.arrears > 0 ? INK : INK);
+    y -= 16;
+  }
+
+  // Per-building breakdown.
+  if (d.buildings.length > 0) {
+    y -= 14;
+    page.drawText("BY BUILDING", { x: MARGIN, y, size: 8, font: bold, color: MUTED });
+    y -= 8;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: right, y }, thickness: 1, color: LINE });
+    y -= 8;
+    // Column header.
+    const cols = { name: MARGIN, occ: 300, vac: 360, rent: 420, arr: right };
+    page.drawText("Building", { x: cols.name, y, size: 8, font: bold, color: MUTED });
+    page.drawText("Occ", { x: cols.occ, y, size: 8, font: bold, color: MUTED });
+    page.drawText("Vac", { x: cols.vac, y, size: 8, font: bold, color: MUTED });
+    rightText(page, bold, "Rent", cols.rent + 28, y, 8, MUTED);
+    rightText(page, bold, "Arrears", cols.arr, y, 8, MUTED);
+    y -= 14;
+    for (const b of d.buildings) {
+      if (y < MARGIN + 40) break; // single page; truncate gracefully
+      const name = clean(b.name) || "Building";
+      const trimmed = name.length > 38 ? name.slice(0, 37) + "…" : name;
+      page.drawText(trimmed, { x: cols.name, y, size: 9, font, color: INK });
+      page.drawText(String(b.occupied), { x: cols.occ, y, size: 9, font, color: INK });
+      page.drawText(String(b.vacant), { x: cols.vac, y, size: 9, font, color: INK });
+      rightText(page, font, kes(b.expectedRent), cols.rent + 28, y, 9, INK);
+      rightText(page, font, kes(b.arrears), cols.arr, y, 9, b.arrears > 0 ? INK : MUTED);
+      y -= 14;
+    }
+  }
 
   drawFooter(page, font);
   return await pdf.save();

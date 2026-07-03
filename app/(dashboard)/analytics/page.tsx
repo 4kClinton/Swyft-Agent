@@ -104,7 +104,7 @@ export default function AnalyticsPage() {
                         {p.source} · {new Date(p.paidAt).toLocaleDateString()}
                       </div>
                     </div>
-                    <Badge className={matchColor[p.matchState] ?? "bg-gray-100"}>{p.matchState.replace("_", " ")}</Badge>
+                    <Badge className={matchColor[p.matchState] ?? "bg-muted"}>{p.matchState.replace("_", " ")}</Badge>
                   </div>
                 ))}
               </div>

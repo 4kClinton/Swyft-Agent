@@ -1,0 +1,37 @@
+Subject: [PATCH] paymentSource: make isVerifiedSource fail-closed
+
+Remove the legacy `undefined`-means-verified grandfather so ONLY an explicit
+status === "verified" routes/backfills/reconciles.
+
+DO NOT MERGE until BOTH are true in EVERY environment (dev + prod):
+  1. `npx convex run migrations:backfillPaymentSourceStatus` has been run, AND
+  2. its returned {updated} count matches the expected legacy-row count.
+
+Apply as its own commit:
+  git apply patches/0001-payment-source-gate-fail-closed.patch
+  git commit -am "paymentSource: fail-closed verification gate (post-migration)"
+---
+diff --git a/convex/lib/paymentSource.ts b/convex/lib/paymentSource.ts
+--- a/convex/lib/paymentSource.ts
++++ b/convex/lib/paymentSource.ts
+@@ -4,10 +4,9 @@ import type { Doc } from "../_generated/dataModel";
+  * A payment source may OBSERVE-route, backfill, and reconcile payments ONLY once
+  * its ownership has been verified (see paymentSources.ts verification flow).
+  *
+- * Legacy rows created before the verification flow have no `status` field and are
+- * grandfathered as verified, so the existing (Munchez bootstrap) pipeline keeps
+- * working with zero downtime. A migration will set those rows to an explicit
+- * "verified". Every NEW row is inserted as "pending" and must be proven first.
++ * Fail-closed: every row now carries an explicit `status` (legacy rows were
++ * stamped "verified" by migrations:backfillPaymentSourceStatus). A "pending" or
++ * "rejected" source — or any row without an explicit "verified" — routes nothing.
+  *
+  * SECURITY: routing (payments.recordObserved), the orphan backfill, and the
+  * clash-guard lock all gate on this — a "pending" or "rejected" source must
+@@ -16,5 +15,5 @@ import type { Doc } from "../_generated/dataModel";
+ export function isVerifiedSource(
+   src: Pick<Doc<"paymentSources">, "status">,
+ ): boolean {
+-  return src.status === undefined || src.status === "verified";
++  return src.status === "verified";
+ }

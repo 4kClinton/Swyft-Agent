@@ -33,6 +33,9 @@ export const get = query({
 
 export const create = mutation({
   args: {
+    // Owning landlord (property-manager companies). Optional for landlord-kind
+    // companies (implicit self-owner).
+    landlordId: v.optional(v.id("landlords")),
     name: v.string(),
     address: v.optional(v.string()),
     city: v.optional(v.string()),
@@ -51,13 +54,19 @@ export const create = mutation({
     totalUnits: v.optional(v.number()),
     latitude: v.optional(v.number()),
     longitude: v.optional(v.number()),
+    directions: v.optional(v.string()),
     amenities: v.optional(v.array(v.string())),
     unitMix: v.optional(unitMixValidator),
+    mediaKeyPrefix: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { companyId } = await requireCompany(ctx);
     if (!args.caretakerName.trim() || !args.caretakerPhone.trim()) {
       throw new Error("Caretaker name and phone are required");
+    }
+    if (args.landlordId) {
+      assertSameCompany(await ctx.db.get(args.landlordId), companyId);
     }
     return await ctx.db.insert("buildings", { companyId, ...args });
   },
@@ -66,6 +75,7 @@ export const create = mutation({
 export const update = mutation({
   args: {
     id: v.id("buildings"),
+    landlordId: v.optional(v.id("landlords")),
     name: v.optional(v.string()),
     address: v.optional(v.string()),
     city: v.optional(v.string()),
@@ -76,12 +86,16 @@ export const update = mutation({
     totalUnits: v.optional(v.number()),
     latitude: v.optional(v.number()),
     longitude: v.optional(v.number()),
+    directions: v.optional(v.string()),
     amenities: v.optional(v.array(v.string())),
     unitMix: v.optional(unitMixValidator),
   },
   handler: async (ctx, { id, ...patch }) => {
     const { companyId } = await requireCompany(ctx);
     assertSameCompany(await ctx.db.get(id), companyId);
+    if (patch.landlordId) {
+      assertSameCompany(await ctx.db.get(patch.landlordId), companyId);
+    }
     await ctx.db.patch(id, patch);
     return null;
   },

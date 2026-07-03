@@ -63,19 +63,19 @@ export function SmartUpload() {
   }
 
   const handleUpload = async () => {
-    if (!file || !user) return
+    if (!file || !user || !user.companyId) return
 
     setUploading(true)
     setProgress(10)
     setError(null)
 
     try {
-      console.log("Starting upload for user:", user.id, "company:", user.company_account_id)
+      console.log("Starting upload for user:", user.id, "company:", user.companyId)
 
       // Upload file
       const formData = new FormData()
       formData.append("file", file)
-      formData.append("company_id", user.company_account_id)
+      formData.append("company_id", user.companyId)
       formData.append("user_id", user.id)
 
       console.log("Sending upload request...")
@@ -163,7 +163,7 @@ export function SmartUpload() {
           uploadId,
           dataType: analysis.detectedType,
           normalizedData: analysis.normalizedData,
-          companyId: user.company_account_id,
+          companyId: user.companyId,
           userId: user.id,
         }),
       })
@@ -200,7 +200,7 @@ export function SmartUpload() {
       expenses: "bg-red-100 text-red-800",
       units: "bg-purple-100 text-purple-800",
       payments: "bg-yellow-100 text-yellow-800",
-      unknown: "bg-gray-100 text-gray-800",
+      unknown: "bg-muted text-foreground",
     }
     return colors[type] || colors.unknown
   }
@@ -236,10 +236,10 @@ export function SmartUpload() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* File Selection */}
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+          <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
             <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <div className="space-y-2">
-              <p className="text-sm text-gray-600">{file ? file.name : "Choose a CSV or Excel file to upload"}</p>
+              <p className="text-sm text-muted-foreground">{file ? file.name : "Choose a CSV or Excel file to upload"}</p>
               <Button
                 variant="outline"
                 onClick={() => document.getElementById("file-input")?.click()}
@@ -369,10 +369,10 @@ export function SmartUpload() {
           <CardContent>
             <div className="border rounded-md max-h-96 overflow-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 sticky top-0">
+                <thead className="bg-muted sticky top-0">
                   <tr>
                     {Object.keys(analysis.normalizedData[0]).map((key) => (
-                      <th key={key} className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">
+                      <th key={key} className="px-4 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
                         {key}
                       </th>
                     ))}
@@ -380,7 +380,7 @@ export function SmartUpload() {
                 </thead>
                 <tbody>
                   {analysis.normalizedData.slice(0, 10).map((row, i) => (
-                    <tr key={i} className="border-b hover:bg-gray-50">
+                    <tr key={i} className="border-b hover:bg-muted">
                       {Object.values(row).map((value: any, j) => (
                         <td key={j} className="px-4 py-2 whitespace-nowrap">
                           {value?.toString() || "—"}
@@ -391,7 +391,7 @@ export function SmartUpload() {
                 </tbody>
               </table>
               {analysis.normalizedData.length > 10 && (
-                <div className="p-4 text-center text-sm text-gray-500 bg-gray-50">
+                <div className="p-4 text-center text-sm text-muted-foreground bg-muted">
                   Showing first 10 of {analysis.normalizedData.length} records
                 </div>
               )}

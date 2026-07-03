@@ -1,169 +1,197 @@
 "use client"
 
-// Free location picker built on Leaflet + OpenStreetMap. No API key / billing.
-// Search uses the public Nominatim geocoder. Loaded client-side only (Leaflet
-// touches `window`), so import this via next/dynamic with `ssr: false`.
+// Google Maps location picker. Uses the Maps JavaScript API + Places Autocomplete
+// + Geocoder via @vis.gl/react-google-maps. Reads NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+// (enable "Maps JavaScript API" and "Places API" for the key). Loaded client-side
+// only, so import via next/dynamic with `ssr: false`.
 
 import { useEffect, useRef, useState } from "react"
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet"
-import L from "leaflet"
-import "leaflet/dist/leaflet.css"
+import {
+  APIProvider,
+  Map,
+  Marker,
+  useMap,
+  useMapsLibrary,
+} from "@vis.gl/react-google-maps"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { Loader2, Search, MapPin } from "lucide-react"
 
-// Leaflet's default marker images don't resolve through bundlers — point them
-// at the CDN-hosted assets so the pin renders.
-const markerIcon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-})
-
-// Nairobi CBD — sensible default centre for a Kenyan property tool.
-const DEFAULT_CENTER: [number, number] = [-1.286389, 36.817223]
+// Nairobi CBD — fallback centre when we have neither a value nor device GPS.
+const DEFAULT_CENTER = { lat: -1.286389, lng: 36.817223 }
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 type LatLng = { lat: number; lng: number }
 
-function ClickHandler({ onPick }: { onPick: (p: LatLng) => void }) {
-  useMapEvents({
-    click(e) {
-      onPick({ lat: e.latlng.lat, lng: e.latlng.lng })
-    },
-  })
-  return null
+// A picked point, enriched with a human-readable address derived from the pin
+// via reverse geocoding — so the building form doesn't need manual address fields.
+export type PickedLocation = {
+  lat: number
+  lng: number
+  address?: string
+  city?: string
+  county?: string
 }
-
-// Imperatively recenters the map when a search result is chosen.
-function Recenter({ position }: { position: LatLng | null }) {
-  const map = useMap()
-  const last = useRef<string>("")
-  useEffect(() => {
-    if (!position) return
-    const key = `${position.lat},${position.lng}`
-    if (key === last.current) return
-    last.current = key
-    map.setView([position.lat, position.lng], Math.max(map.getZoom(), 15))
-  }, [position, map])
-  return null
-}
-
-type SearchResult = { display_name: string; lat: string; lon: string }
 
 export interface LocationPickerProps {
-  value: LatLng | null
-  onChange: (value: LatLng) => void
+  value: PickedLocation | null
+  onChange: (value: PickedLocation) => void
 }
 
-export default function LocationPicker({ value, onChange }: LocationPickerProps) {
-  const [query, setQuery] = useState("")
-  const [results, setResults] = useState<SearchResult[]>([])
-  const [searching, setSearching] = useState(false)
+// Pull city/county/street out of a Geocoder result's address components.
+function parseComponents(
+  components: google.maps.GeocoderAddressComponent[],
+): Pick<PickedLocation, "address" | "city" | "county"> {
+  const get = (type: string) =>
+    components.find((c) => c.types.includes(type))?.long_name
+  const route = get("route")
+  const neighbourhood = get("neighborhood") ?? get("sublocality")
+  const address = [route, neighbourhood].filter(Boolean).join(", ") || undefined
+  const city =
+    get("locality") ??
+    get("administrative_area_level_2") ??
+    get("administrative_area_level_1")
+  const county =
+    get("administrative_area_level_2") ?? get("administrative_area_level_1")
+  return { address, city, county }
+}
 
-  const search = async () => {
-    const q = query.trim()
-    if (!q) return
-    setSearching(true)
-    setResults([])
+// Inner picker — must live under <APIProvider> so the Maps hooks work.
+function Picker({ value, onChange }: LocationPickerProps) {
+  const map = useMap()
+  const placesLib = useMapsLibrary("places")
+  const geocodingLib = useMapsLibrary("geocoding")
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [resolving, setResolving] = useState(false)
+  const geocoder = useRef<google.maps.Geocoder | null>(null)
+
+  useEffect(() => {
+    if (geocodingLib && !geocoder.current) geocoder.current = new geocodingLib.Geocoder()
+  }, [geocodingLib])
+
+  // Reverse geocode a pin to address parts (best-effort).
+  const reverseGeocode = async (p: LatLng): Promise<Partial<PickedLocation>> => {
+    if (!geocoder.current) return {}
     try {
-      const url =
-        "https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=ke&q=" +
-        encodeURIComponent(q)
-      const res = await fetch(url, { headers: { "Accept-Language": "en" } })
-      const data = (await res.json()) as SearchResult[]
-      setResults(data)
+      const { results } = await geocoder.current.geocode({ location: p })
+      const best = results[0]
+      return best ? parseComponents(best.address_components) : {}
     } catch {
-      setResults([])
-    } finally {
-      setSearching(false)
+      return {}
     }
   }
 
-  const pickResult = (r: SearchResult) => {
-    const p = { lat: Number(r.lat), lng: Number(r.lon) }
+  // Set the pin immediately, then enrich it with a resolved address.
+  const pick = async (p: LatLng) => {
     onChange(p)
-    setResults([])
-    setQuery(r.display_name.split(",").slice(0, 2).join(", "))
+    map?.panTo(p)
+    setResolving(true)
+    try {
+      const a = await reverseGeocode(p)
+      onChange({ ...p, ...a })
+    } finally {
+      setResolving(false)
+    }
   }
+
+  // Centre on the device's real location on first mount when nothing is picked
+  // yet — avoids everyone defaulting to Nairobi CBD.
+  useEffect(() => {
+    if (value || !map || typeof navigator === "undefined" || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: true, timeout: 8000 },
+    )
+    // Only on first mount / map ready.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map])
+
+  // Bind Places Autocomplete to the search input.
+  useEffect(() => {
+    if (!placesLib || !inputRef.current) return
+    const ac = new placesLib.Autocomplete(inputRef.current, {
+      fields: ["geometry", "formatted_address"],
+      componentRestrictions: { country: "ke" },
+    })
+    const listener = ac.addListener("place_changed", () => {
+      const place = ac.getPlace()
+      const loc = place.geometry?.location
+      if (!loc) return
+      void pick({ lat: loc.lat(), lng: loc.lng() })
+    })
+    return () => listener.remove()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placesLib])
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault()
-                search()
-              }
-            }}
-            placeholder="Search an estate, road or landmark…"
-            className="pl-8"
-          />
-        </div>
-        <Button type="button" variant="outline" onClick={search} disabled={searching}>
-          {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
-        </Button>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          ref={inputRef}
+          placeholder="Search an estate, road or landmark…"
+          className="pl-8"
+          onKeyDown={(e) => {
+            // Let Autocomplete handle Enter; don't submit the building form.
+            if (e.key === "Enter") e.preventDefault()
+          }}
+        />
       </div>
 
-      {results.length > 0 && (
-        <div className="overflow-hidden rounded-md border">
-          {results.map((r, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => pickResult(r)}
-              className="flex w-full items-start gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted"
-            >
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="line-clamp-2">{r.display_name}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className="h-64 w-full overflow-hidden rounded-md border">
-        <MapContainer
-          center={value ? [value.lat, value.lng] : DEFAULT_CENTER}
-          zoom={value ? 15 : 12}
-          style={{ height: "100%", width: "100%" }}
-          scrollWheelZoom
+        <Map
+          defaultCenter={value ?? DEFAULT_CENTER}
+          defaultZoom={value ? 16 : 12}
+          gestureHandling="greedy"
+          disableDefaultUI={false}
+          clickableIcons={false}
+          onClick={(e) => {
+            if (e.detail.latLng) void pick(e.detail.latLng)
+          }}
         >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <ClickHandler onPick={onChange} />
-          <Recenter position={value} />
           {value && (
             <Marker
-              position={[value.lat, value.lng]}
-              icon={markerIcon}
+              position={value}
               draggable
-              eventHandlers={{
-                dragend(e) {
-                  const m = e.target as L.Marker
-                  const p = m.getLatLng()
-                  onChange({ lat: p.lat, lng: p.lng })
-                },
+              onDragEnd={(e) => {
+                if (e.latLng) void pick({ lat: e.latLng.lat(), lng: e.latLng.lng() })
               }}
             />
           )}
-        </MapContainer>
+        </Map>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {value
-          ? `Pin: ${value.lat.toFixed(5)}, ${value.lng.toFixed(5)} — drag the pin or click the map to adjust.`
-          : "Search above, or click the map to drop a pin."}
+        {resolving ? (
+          <span className="inline-flex items-center gap-1">
+            <Loader2 className="h-3 w-3 animate-spin" /> Looking up the address…
+          </span>
+        ) : value ? (
+          value.address
+            ? `${value.address}${value.city ? `, ${value.city}` : ""} — drag the pin or click the map to adjust.`
+            : `Pin: ${value.lat.toFixed(5)}, ${value.lng.toFixed(5)} — drag the pin or click the map to adjust.`
+        ) : (
+          "Search above, or click the map to drop a pin."
+        )}
       </p>
     </div>
+  )
+}
+
+export default function LocationPicker(props: LocationPickerProps) {
+  if (!API_KEY) {
+    return (
+      <div className="flex h-64 w-full items-center justify-center rounded-md border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
+        <span className="inline-flex items-center gap-2">
+          <MapPin className="h-4 w-4" />
+          Map unavailable — set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable location.
+        </span>
+      </div>
+    )
+  }
+  return (
+    <APIProvider apiKey={API_KEY}>
+      <Picker {...props} />
+    </APIProvider>
   )
 }

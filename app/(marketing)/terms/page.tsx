@@ -11,9 +11,11 @@ export default function TermsPage() {
     <LegalPage title="Terms & Conditions" lastUpdated="19 June 2026">
       <p className="text-[15px] leading-relaxed text-[#3A4742]">
         These Terms &amp; Conditions (&ldquo;Terms&rdquo;) govern your access to and use of the Swyft
-        platform, websites, and services (collectively, the &ldquo;Service&rdquo;) operated by Swyft
-        (&ldquo;Swyft&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). By creating an account or using the
-        Service, you agree to be bound by these Terms. If you do not agree, do not use the Service.
+        platform, websites, and services (collectively, the &ldquo;Service&rdquo;). The Service is
+        operated by Taleel Holdings Ltd, a company incorporated in Kenya. &ldquo;Swyft&rdquo; is a
+        trading name of Taleel Holdings Ltd. References to &ldquo;Swyft&rdquo;, &ldquo;we&rdquo;, or
+        &ldquo;us&rdquo; mean Taleel Holdings Ltd. By creating an account or using the Service, you
+        agree to be bound by these Terms. If you do not agree, do not use the Service.
       </p>
 
       <LegalSection heading="1. Who can use Swyft">
@@ -73,7 +75,32 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="6. Third-party services">
+      <LegalSection heading="6. Connecting payment sources">
+        <p>
+          You represent and warrant that you own, or are expressly authorised to manage, every bank
+          account, paybill, till, or payment rail you connect to the Service (each a &ldquo;Connected
+          Account&rdquo;). You must not connect, or attempt to connect, any account you do not own or
+          control. You authorise Swyft to receive and process read-only payment notifications for each
+          Connected Account solely to reconcile rent, generate receipts, and track arrears on your
+          behalf. We may require verification of ownership or authority before activating a Connected
+          Account, and may decline, suspend, or remove any Connected Account we are unable to verify.
+          You are responsible for every Connected Account registered under your company, and you agree
+          to indemnify Swyft against any claim, loss, or regulatory action arising from your connecting
+          an account you did not own or were not authorised to connect.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="7. Data protection roles">
+        <p>
+          In respect of personal data relating to tenants and payers that is observed through your
+          Connected Accounts, you act as the data controller and Swyft acts as your data processor,
+          processing such data only on your documented instructions and as described in our Privacy
+          Policy. You confirm you have a lawful basis under the Data Protection Act, 2019 to process
+          this data for rent reconciliation and to authorise Swyft to do so on your behalf.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="8. Third-party services">
         <p>
           The Service relies on third parties such as banks, mobile money providers, and infrastructure
           providers. We are not responsible for the availability, accuracy, or actions of these third
@@ -81,7 +108,7 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="7. Disclaimers">
+      <LegalSection heading="9. Disclaimers">
         <p>
           The Service is provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo; without warranties
           of any kind, whether express or implied. We do not warrant that the Service will be
@@ -90,7 +117,7 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="8. Limitation of liability">
+      <LegalSection heading="10. Limitation of liability">
         <p>
           To the maximum extent permitted by law, Swyft shall not be liable for any indirect,
           incidental, special, consequential, or punitive damages, or for any loss of profits, revenue,
@@ -98,7 +125,7 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="9. Termination">
+      <LegalSection heading="11. Termination">
         <p>
           You may stop using the Service at any time. We may suspend or terminate your access if you
           breach these Terms or where we are required to do so by law. Provisions that by their nature
@@ -106,7 +133,7 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="10. Changes to these Terms">
+      <LegalSection heading="12. Changes to these Terms">
         <p>
           We may update these Terms from time to time. If we make material changes, we will take
           reasonable steps to notify you. Your continued use of the Service after changes take effect
@@ -114,14 +141,14 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="11. Governing law">
+      <LegalSection heading="13. Governing law">
         <p>
           These Terms are governed by the laws of the Republic of Kenya, and the courts of Kenya shall
           have exclusive jurisdiction over any dispute arising from them.
         </p>
       </LegalSection>
 
-      <LegalSection heading="12. Contact us">
+      <LegalSection heading="14. Contact us">
         <p>
           Questions about these Terms? Email us at{" "}
           <a href="mailto:contact@swyft.africa" className="font-medium text-emerald-700 hover:underline">

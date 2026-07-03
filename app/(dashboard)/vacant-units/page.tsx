@@ -8,28 +8,44 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/empty-state"
-import { Building2, Megaphone, Home } from "lucide-react"
+import { Building2, Megaphone, Home, Sparkles, DoorOpen } from "lucide-react"
 import { unitTypeLabel } from "@/components/building-unit-picker"
+import { VacantRosterDialog } from "@/components/vacant-roster-dialog"
 
 export default function VacantUnitsPage() {
   const units = useQuery(api.units.listForCompany)
   const buildings = useQuery(api.buildings.list)
+  const tenants = useQuery(api.tenants.list)
 
-  const loading = units === undefined || buildings === undefined
+  const loading = units === undefined || buildings === undefined || tenants === undefined
 
-  // Vacancy is derived: each building's total units minus the units that have
-  // been named (a unit is named when a tenant is assigned). (Issue #11)
+  // Vacancy is derived: each building's total units minus the units that are
+  // occupied. A unit is occupied when a tenant is assigned to it — but an
+  // imported tenant may be linked to the building without a named unit, so we
+  // also count active tenants placed directly on the building. (Issue #11)
   const rows = useMemo(() => {
-    if (!units || !buildings) return []
+    if (!units || !buildings || !tenants) return []
     return buildings.map((b) => {
       const buildingUnits = units.filter((u) => u.buildingId === b._id)
-      const occupied = buildingUnits.filter((u) => u.status === "occupied").length
+      const occupiedUnits = buildingUnits.filter((u) => u.status === "occupied").length
+      const activeTenants = tenants.filter(
+        (t) => t.buildingId === b._id && t.status === "active",
+      ).length
+      // max() avoids double-counting: tenants with a named unit show up in both
+      // tallies, while building-only tenants are caught by activeTenants.
+      const occupied = Math.max(occupiedUnits, activeTenants)
       const mixTotal = (b.unitMix ?? []).reduce((s, m) => s + (m.count || 0), 0)
-      const total = b.totalUnits ?? mixTotal ?? buildingUnits.length
+      // Fall back through totalUnits → unit-mix → known units, and never let the
+      // total read below what's actually occupied.
+      const total = Math.max(b.totalUnits ?? (mixTotal || buildingUnits.length), occupied)
       const vacant = Math.max(total - occupied, 0)
-      return { building: b, buildingUnits, occupied, total, vacant }
+      // Units materialised (by name) with a vacant status — the named roster.
+      const vacantUnits = buildingUnits.filter((u) => u.status === "vacant")
+      // How many vacant units still lack a named record (worth "detecting").
+      const unnamedVacant = Math.max(vacant - vacantUnits.length, 0)
+      return { building: b, buildingUnits, vacantUnits, occupied, total, vacant, unnamedVacant }
     })
-  }, [units, buildings])
+  }, [units, buildings, tenants])
 
   const totalVacant = rows.reduce((s, r) => s + r.vacant, 0)
 
@@ -51,7 +67,7 @@ export default function VacantUnitsPage() {
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2">
           {[...Array(4)].map((_, i) => (
-            <Card key={i} className="animate-pulse"><CardHeader><div className="h-4 w-2/3 rounded bg-gray-200" /></CardHeader><CardContent><div className="h-3 w-1/2 rounded bg-gray-200" /></CardContent></Card>
+            <Card key={i} className="animate-pulse"><CardHeader><div className="h-4 w-2/3 rounded bg-secondary" /></CardHeader><CardContent><div className="h-3 w-1/2 rounded bg-secondary" /></CardContent></Card>
           ))}
         </div>
       ) : rows.length === 0 ? (
@@ -63,7 +79,7 @@ export default function VacantUnitsPage() {
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {rows.map(({ building, buildingUnits, occupied, total, vacant }) => (
+          {rows.map(({ building, buildingUnits, vacantUnits, occupied, total, vacant, unnamedVacant }) => (
             <Card key={building._id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -71,7 +87,7 @@ export default function VacantUnitsPage() {
                     <CardTitle className="text-lg">{building.name}</CardTitle>
                     <p className="text-sm text-muted-foreground">{building.city ?? building.address ?? "—"}</p>
                   </div>
-                  <Badge className={vacant > 0 ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-700"}>
+                  <Badge className={vacant > 0 ? "bg-emerald-100 text-emerald-800" : "bg-muted text-foreground"}>
                     {vacant} vacant
                   </Badge>
                 </div>
@@ -90,6 +106,20 @@ export default function VacantUnitsPage() {
                     ))}
                   </div>
                 )}
+                {vacantUnits.length > 0 && (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-2">
+                    <div className="mb-1 flex items-center gap-1 text-xs font-medium text-emerald-700">
+                      <DoorOpen className="h-3 w-3" /> Vacant units
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {vacantUnits.map((u) => (
+                        <Badge key={u._id} className="bg-emerald-100 font-normal text-emerald-800">
+                          {u.unitNumber}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {buildingUnits.filter((u) => u.status === "occupied").length > 0 && (
                   <div className="rounded-md border bg-muted/40 p-2">
                     <div className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
@@ -103,6 +133,19 @@ export default function VacantUnitsPage() {
                         ))}
                     </div>
                   </div>
+                )}
+                {vacant > 0 && (
+                  <VacantRosterDialog
+                    buildingId={building._id}
+                    buildingName={building.name}
+                    trigger={
+                      <Button variant="outline" size="sm" className="w-full">
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        {vacantUnits.length > 0 ? "Update vacant units" : "Detect vacant units"}
+                        {unnamedVacant > 0 ? ` (${unnamedVacant} unnamed)` : ""}
+                      </Button>
+                    }
+                  />
                 )}
               </CardContent>
             </Card>

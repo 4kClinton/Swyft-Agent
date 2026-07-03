@@ -32,3 +32,36 @@ export const migrateOwnerToLandlord = internalMutation({
     return { rolesUpdated, companiesUpdated };
   },
 });
+
+/**
+ * One-off: stamp every EXISTING paymentSources row as status="verified" so the
+ * ownership gate (lib/paymentSource.ts:isVerifiedSource) can be made fail-closed
+ * WITHOUT breaking the live (Munchez bootstrap) pipeline.
+ *
+ * DEPLOY SEQUENCE — order is load-bearing:
+ *   1. Deploy the code that adds the optional `status` field + this migration,
+ *      while isVerifiedSource STILL grandfathers `undefined` as verified.
+ *   2. Run, per environment:  npx convex run migrations:backfillPaymentSourceStatus
+ *   3. ONLY THEN deploy the follow-up commit that flips isVerifiedSource to
+ *      require status === "verified" exactly (removing the grandfather).
+ * Running step 3 before step 2 completes would stop the live source from routing.
+ *
+ * Idempotent: only patches rows that have no `status` yet, so re-running is safe.
+ */
+export const backfillPaymentSourceStatus = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let updated = 0;
+    for (const src of await ctx.db.query("paymentSources").collect()) {
+      if (src.status === undefined) {
+        await ctx.db.patch(src._id, {
+          status: "verified",
+          verificationMethod: "admin_manual",
+          verifiedAt: src.authorisedAt ?? src._creationTime,
+        });
+        updated++;
+      }
+    }
+    return { updated };
+  },
+});

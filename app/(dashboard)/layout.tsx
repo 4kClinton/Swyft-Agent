@@ -48,7 +48,7 @@ export default function DashboardLayout({
   if (profileMissing) {
     return (
       <div className="flex h-screen items-center justify-center p-6">
-        <div className="flex max-w-md flex-col items-center gap-4 rounded-xl border bg-white p-8 text-center shadow-sm">
+        <div className="flex max-w-md flex-col items-center gap-4 rounded-xl border bg-card p-8 text-center shadow-sm">
           <AlertTriangle className="h-10 w-10 text-amber-500" />
           <h2 className="text-lg font-semibold">Account setup incomplete</h2>
           <p className="text-sm text-muted-foreground">
@@ -76,7 +76,7 @@ export default function DashboardLayout({
            
          
 
-          <main className="flex-1 overflow-auto bg-white">{children}</main>
+          <main className="flex-1 overflow-auto bg-card">{children}</main>
         </SidebarInset>
       </div>
     </SidebarProvider>

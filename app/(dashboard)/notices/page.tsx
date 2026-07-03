@@ -19,7 +19,7 @@ import { toast } from "sonner"
 import type { Id } from "@/convex/_generated/dataModel"
 
 const statusColor: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-800",
+  draft: "bg-muted text-foreground",
   sent: "bg-blue-100 text-blue-800",
   delivered: "bg-emerald-100 text-emerald-800",
   acknowledged: "bg-emerald-100 text-emerald-800",
@@ -28,7 +28,7 @@ const recipientColor: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800",
   sent: "bg-emerald-100 text-emerald-800",
   failed: "bg-red-100 text-red-800",
-  skipped: "bg-gray-100 text-gray-600",
+  skipped: "bg-muted text-muted-foreground",
 }
 
 export default function NoticesPage() {
@@ -133,7 +133,7 @@ export default function NoticesPage() {
                 {n.recipients.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {n.recipients.map((r) => (
-                      <Badge key={r._id} className={`${recipientColor[r.state] ?? "bg-gray-100"} gap-1 font-normal`}>
+                      <Badge key={r._id} className={`${recipientColor[r.state] ?? "bg-muted"} gap-1 font-normal`}>
                         {r.channel === "email" ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
                         {r.tenantName} · {r.state}
                       </Badge>

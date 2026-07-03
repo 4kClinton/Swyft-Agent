@@ -25,7 +25,7 @@ export default function PackagesPage(){
             </div>
             <div className="flex px-6 pb-8 sm:px-8 mt-auto">
             <a href="#"
-                className="items-center justify-center w-full px-6 py-2.5 text-center text-[#00d460] duration-200 bg-white border-2 border-white rounded-full inline-flex hover:bg-transparent hover:text-white">
+                className="items-center justify-center w-full px-6 py-2.5 text-center text-[#00d460] duration-200 bg-card border-2 border-white rounded-full inline-flex hover:bg-transparent hover:text-white">
                 Get started
             </a>
             </div>
@@ -54,7 +54,7 @@ export default function PackagesPage(){
             </div>
             <div className="flex px-6 pb-8 sm:px-8 mt-auto">
             <a href="#"
-                className="items-center justify-center w-full px-6 py-2.5 text-center text-[#00d460] duration-200 bg-white border-2 border-white rounded-full inline-flex hover:bg-transparent hover:text-white">
+                className="items-center justify-center w-full px-6 py-2.5 text-center text-[#00d460] duration-200 bg-card border-2 border-white rounded-full inline-flex hover:bg-transparent hover:text-white">
                 Get started
             </a>
             </div>
@@ -84,7 +84,7 @@ export default function PackagesPage(){
             </div>
             <div className="flex px-6 pb-8 sm:px-8 mt-auto">
             <a href="#"
-                className="items-center justify-center w-full px-6 py-2.5 text-center text-[#00d460] duration-200 bg-white border-2 border-white rounded-full inline-flex hover:bg-transparent hover:text-white">
+                className="items-center justify-center w-full px-6 py-2.5 text-center text-[#00d460] duration-200 bg-card border-2 border-white rounded-full inline-flex hover:bg-transparent hover:text-white">
                 Get started
             </a>
             </div>
@@ -114,7 +114,7 @@ export default function PackagesPage(){
             </div>
             <div className="flex px-6 pb-8 sm:px-8 mt-auto">
             <a href="#"
-                className="items-center justify-center w-full px-6 py-2.5 text-center text-[#00d460] duration-200 bg-white border-2 border-white rounded-full inline-flex hover:bg-transparent hover:text-white">
+                className="items-center justify-center w-full px-6 py-2.5 text-center text-[#00d460] duration-200 bg-card border-2 border-white rounded-full inline-flex hover:bg-transparent hover:text-white">
                 Get started
             </a>
             </div>

@@ -19,23 +19,47 @@ http.route({
   path: "/jenga/ipn",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const authHeader = request.headers.get("authorization") ?? "";
-    const expected =
-      "Basic " +
-      btoa(`${process.env.JENGA_IPN_USER}:${process.env.JENGA_IPN_PASS}`);
-    if (authHeader !== expected) {
+    // The Basic-Auth secret is the ONLY thing protecting this endpoint (Jenga
+    // offers no payload signature), so refuse anything not over HTTPS.
+    if (!isHttps(request)) {
+      return new Response("HTTPS required", { status: 400 });
+    }
+
+    // Read credentials from env only — never logged, never hardcoded. Fail
+    // CLOSED if unconfigured, so a missing env var can't be auth'd as
+    // "undefined:undefined".
+    const user = process.env.JENGA_IPN_USER;
+    const pass = process.env.JENGA_IPN_PASS;
+    if (!user || !pass) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+    const expected = "Basic " + btoa(`${user}:${pass}`);
+    const provided = request.headers.get("authorization") ?? "";
+    if (!(await timingSafeEqualStr(provided, expected))) {
       return new Response("Unauthorized", { status: 401 });
     }
 
     // Real Jenga IPN shape (confirmed from docs): nested customer/transaction/bank.
+    // NOTE: do NOT log `p`, payer PII, or the raw payload to stdout in prod — the
+    // verbatim body is persisted to `payments.raw` (+ ipnDebug) for audit instead.
     const p = await request.json();
     const tx = p.transaction ?? {};
     const cust = p.customer ?? {};
     const bank = p.bank ?? {};
+    const bill = p.bill ?? {};
+
+    // Defensive account extraction. Jenga's docs say the account number arrives
+    // in `transaction.billNumber` ("This is the account number") and `bank.account`
+    // is often null, but their field table is internally inconsistent — so try
+    // billNumber first, then bill.account, then bank.account. The first ~50 raw
+    // payloads are mirrored to ipnDebug (in recordObserved) to confirm the field.
+    const account = String(
+      tx.billNumber ?? bill.account ?? bank.account ?? "",
+    ).trim();
 
     // Only record SUCCESSFUL CREDITS. Ignore failures and debits
     // (bank.transactionType "C" = credit, "D" = debit) so we never count
-    // money leaving the account as rent received. Always 200 so Jenga stops retrying.
+    // money leaving the account as rent received. 200 so Jenga stops retrying.
     const status = String(tx.status ?? "").toUpperCase();
     const isCredit =
       String(bank.transactionType ?? "C").toUpperCase() === "C";
@@ -47,7 +71,7 @@ http.route({
         currency: String(tx.currency ?? "KES"),
         payerPhone: cust.mobileNumber, // "254712345678"
         payerName: cust.name,
-        account: String(tx.billNumber ?? bank.account ?? ""),
+        account,
         paidAt: Date.parse(tx.date ?? "") || Date.now(),
         status,
         raw: p,
@@ -432,11 +456,10 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const raw = await request.text();
 
-    // TEMP DIAGNOSTIC — capture exactly what Stanbic sends (format + auth), so
-    // we can confirm the real contract from `npx convex logs`. Remove once known.
-    console.log("[stanbic/ins] content-type:", request.headers.get("content-type"));
-    console.log("[stanbic/ins] x-ibm-client-id:", request.headers.get("X-IBM-Client-Id"));
-    console.log("[stanbic/ins] raw body:", raw);
+    // To inspect an unknown Stanbic contract, use the capped ipnDebug table (the
+    // verbatim body is persisted via recordObserved) — never console.log the raw
+    // body, content-type, or X-IBM-Client-Id: that leaks payer PII and the auth
+    // secret to stdout/log retention (DPA exposure).
 
     // Stanbic ClientFormat may be JSON or XML — accept either.
     let p: any;
@@ -481,6 +504,40 @@ http.route({
     );
   }),
 });
+
+/**
+ * Constant-time string comparison. Hashes both sides with SHA-256 first so that
+ * neither the length nor the content of the secret leaks through timing. Used to
+ * compare the inbound Basic-Auth header against the expected credential.
+ */
+async function timingSafeEqualStr(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest("SHA-256", enc.encode(a)),
+    crypto.subtle.digest("SHA-256", enc.encode(b)),
+  ]);
+  const va = new Uint8Array(ha);
+  const vb = new Uint8Array(hb);
+  let diff = 0;
+  for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i];
+  return diff === 0;
+}
+
+/**
+ * Enforce that a request arrived over HTTPS. The Jenga IPN's only protection is
+ * a Basic-Auth secret, so it must never travel in cleartext. Convex serves
+ * httpAction routes over https in production; we read the forwarded proto and
+ * fall back to the request URL's scheme.
+ */
+function isHttps(request: Request): boolean {
+  const fwd = request.headers.get("x-forwarded-proto");
+  if (fwd) return fwd.split(",")[0].trim().toLowerCase() === "https";
+  try {
+    return new URL(request.url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 /** Constant-time-ish HMAC-SHA256 hex verification using Web Crypto. */
 async function verifyHmac(

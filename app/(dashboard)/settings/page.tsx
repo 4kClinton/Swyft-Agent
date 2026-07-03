@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Lock, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
+import { AppearanceSettings } from "@/components/appearance-settings"
 
 const adapters = [
   { value: "jenga", label: "Equity (Jenga IPN)" },
@@ -21,6 +22,28 @@ const adapters = [
   { value: "sms", label: "SMS forwarder (any bank)" },
   { value: "statement", label: "Statement upload only" },
 ]
+
+/**
+ * Convex surfaces server-thrown errors as messages like
+ * "[CONVEX M(paymentSources:connect)] [Request ID: …] Server Error: Uncaught Error: <msg>".
+ * Pull out the human-readable tail so the toast isn't a wall of internals.
+ */
+function extractConvexError(err: unknown, fallback: string): string {
+  const raw = err instanceof Error ? err.message : typeof err === "string" ? err : ""
+  if (!raw) return fallback
+  const m = raw.match(/Uncaught Error:\s*(.+?)(?:\n|$)/) ?? raw.match(/Server Error:\s*(.+?)(?:\n|$)/)
+  return (m?.[1] ?? raw).trim() || fallback
+}
+
+/** Map a payment-source verification status to a badge style + label. */
+function sourceStatusBadge(status?: string, active?: boolean) {
+  if (status === "pending") return { className: "bg-amber-100 text-amber-800", label: "pending verification" }
+  if (status === "rejected") return { className: "bg-red-100 text-red-700", label: "rejected" }
+  // verified or legacy (undefined) → reflect the active/paused toggle.
+  return active
+    ? { className: "bg-emerald-100 text-emerald-800", label: "active" }
+    : { className: "bg-muted text-muted-foreground", label: "paused" }
+}
 
 export default function SettingsPage() {
   const me = useQuery(api.companies.me)
@@ -59,7 +82,8 @@ export default function SettingsPage() {
       })
       toast.success("Company updated")
     } catch (err: any) {
-      toast.error(err?.message ?? "Failed to update")
+      console.error("[settings] update company failed ✕", err)
+      toast.error(extractConvexError(err, "Failed to update company"))
     } finally {
       setSavingCompany(false)
     }
@@ -67,20 +91,39 @@ export default function SettingsPage() {
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!src.accountNumber) return toast.error("Account number is required")
+    const accountNumber = src.accountNumber.trim()
+    if (!accountNumber) return toast.error("Account number is required")
+
+    const payload = {
+      adapter: src.adapter as any,
+      accountNumber,
+      paybill: src.paybill.trim() || undefined,
+      label: src.label.trim() || undefined,
+      buildingId: src.buildingId !== "all" ? (src.buildingId as any) : undefined,
+    }
+
     setConnecting(true)
+    console.info("[settings] connect payment source →", payload)
     try {
-      await connect({
-        adapter: src.adapter as any,
-        accountNumber: src.accountNumber,
-        paybill: src.paybill || undefined,
-        label: src.label || undefined,
-        buildingId: src.buildingId !== "all" ? (src.buildingId as any) : undefined,
-      })
-      toast.success("Payment source connected")
+      const res = await connect(payload)
+      console.info("[settings] connect result ←", res)
+
+      if (res?.created === false) {
+        // Idempotent: we returned an existing claim instead of creating one.
+        toast.info(
+          res.status === "pending"
+            ? "This account is already submitted and awaiting verification."
+            : "This account is already connected to your company.",
+        )
+      } else if (res?.status === "pending") {
+        toast.success("Payment source added — awaiting ownership verification before it goes live.")
+      } else {
+        toast.success("Payment source connected")
+      }
       setSrc({ adapter: "jenga", accountNumber: "", paybill: "", label: "", buildingId: "all" })
     } catch (err: any) {
-      toast.error(err?.message ?? "Failed to connect")
+      console.error("[settings] connect failed ✕", err)
+      toast.error(extractConvexError(err, "Failed to connect payment source"))
     } finally {
       setConnecting(false)
     }
@@ -116,7 +159,15 @@ export default function SettingsPage() {
                     <div className="mt-1">
                       <Select
                         value={s.buildingId ?? "all"}
-                        onValueChange={(v) => setBuilding({ id: s._id, buildingId: v !== "all" ? (v as any) : undefined })}
+                        onValueChange={async (v) => {
+                          try {
+                            await setBuilding({ id: s._id, buildingId: v !== "all" ? (v as any) : undefined })
+                            toast.success("Building link updated")
+                          } catch (err: any) {
+                            console.error("[settings] set building failed ✕", err)
+                            toast.error(extractConvexError(err, "Failed to link building"))
+                          }
+                        }}
                       >
                         <SelectTrigger className="h-7 w-[220px] text-xs">
                           <SelectValue />
@@ -131,12 +182,31 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge className={s.active ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"}>
-                      {s.active ? "active" : "paused"}
-                    </Badge>
-                    <Button variant="ghost" size="sm" onClick={() => setActive({ id: s._id, active: !s.active })}>
-                      {s.active ? "Pause" : "Resume"}
-                    </Button>
+                    {(() => {
+                      const b = sourceStatusBadge(s.status, s.active)
+                      return <Badge className={b.className}>{b.label}</Badge>
+                    })()}
+                    {/* Pausing only makes sense once verified; a pending claim
+                        routes nothing regardless of the active flag. */}
+                    {s.status === "pending" ? (
+                      <span className="text-xs text-muted-foreground">Awaiting verification</span>
+                    ) : s.status === "rejected" ? null : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await setActive({ id: s._id, active: !s.active })
+                            toast.success(s.active ? "Source paused" : "Source resumed")
+                          } catch (err: any) {
+                            console.error("[settings] toggle active failed ✕", err)
+                            toast.error(extractConvexError(err, "Failed to update source"))
+                          }
+                        }}
+                      >
+                        {s.active ? "Pause" : "Resume"}
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -220,6 +290,9 @@ export default function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Appearance — light / dark / system theme */}
+      <AppearanceSettings />
     </div>
   )
 }

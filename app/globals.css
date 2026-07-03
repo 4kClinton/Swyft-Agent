@@ -3,26 +3,32 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+  /*
+   * Light palette — sourced from the customer app's `lightTheme`.
+   * bg #F5F5F5, surface #FFFFFF, surface2/border #F0F0F0/#E0E0E0,
+   * text #111111, textMuted #757575, primary Colors.primary (#00D46A).
+   */
+  :root,
+  .light {
+    --background: 0 0% 96.1%;        /* #F5F5F5 */
+    --foreground: 0 0% 6.7%;         /* #111111 */
+    --card: 0 0% 100%;               /* #FFFFFF surface */
+    --card-foreground: 0 0% 6.7%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 0 0% 6.7%;
+    --primary: 150 100% 41.6%;       /* #00D46A */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 94.1%;         /* #F0F0F0 surface2 */
+    --secondary-foreground: 0 0% 6.7%;
+    --muted: 0 0% 94.1%;             /* #F0F0F0 */
+    --muted-foreground: 0 0% 45.9%;  /* #757575 */
+    --accent: 0 0% 94.1%;
+    --accent-foreground: 0 0% 6.7%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 87.8%;            /* #E0E0E0 */
+    --input: 0 0% 87.8%;
+    --ring: 150 100% 41.6%;          /* #00D46A */
     --radius: 0.75rem;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -31,26 +37,32 @@
     --chart-5: 27 87% 67%;
   }
 
+  /*
+   * Dark palette — sourced from the customer app's `darkTheme`
+   * (the login-screen THEMES array).
+   * bg #0D0D0D, surface #161616, surface2 #1E1E1E, border #2A2A2A,
+   * text #FFFFFF, textMuted #757575.
+   */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.1%;
+    --background: 0 0% 5.1%;         /* #0D0D0D */
+    --foreground: 0 0% 100%;         /* #FFFFFF */
+    --card: 0 0% 8.6%;               /* #161616 surface */
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 8.6%;            /* #161616 */
+    --popover-foreground: 0 0% 100%;
+    --primary: 150 100% 41.6%;       /* #00D46A */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 11.8%;         /* #1E1E1E surface2 */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 11.8%;             /* #1E1E1E */
+    --muted-foreground: 0 0% 45.9%;  /* #757575 */
+    --accent: 0 0% 14.5%;            /* #252525 iconBg */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62.8% 40.6%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 16.5%;            /* #2A2A2A */
+    --input: 0 0% 16.5%;
+    --ring: 150 100% 41.6%;          /* #00D46A */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -124,6 +136,24 @@ div[style*="position: fixed"][style*="bottom"][style*="right"] {
   [data-sidebar="trigger"] {
     z-index: 9999 !important;
     position: relative !important;
+  }
+}
+
+/* Landing-page motion */
+@keyframes swyft-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.swyft-float {
+  animation: swyft-float 6s ease-in-out infinite;
+}
+.swyft-float-slow {
+  animation: swyft-float 8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .swyft-float,
+  .swyft-float-slow {
+    animation: none;
   }
 }
 
@@ -236,7 +266,7 @@ div[style*="position: fixed"][style*="bottom"][style*="right"] {
     top: 1rem !important;
     right: 1rem !important;
     z-index: 9999 !important;
-    background: white !important;
+    background: hsl(var(--background)) !important;
     border: 1px solid hsl(var(--border)) !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
   }

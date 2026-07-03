@@ -422,12 +422,12 @@ export default function RequestMovePage(): ReactElement {
   // Fetch moves data
   useEffect(() => {
     const fetchMoves = async () => {
-      if (!user?.company_account_id) return
+      if (!user?.companyId) return
 
       setIsLoadingMoves(true)
       try {
         // Mock data for now - replace with actual API call
-        const mockMoves = []
+        const mockMoves: any[] = []
         setMoves(mockMoves)
       } catch (error) {
         console.error("Failed to fetch moves:", error)
@@ -632,7 +632,7 @@ ${serviceType === "transport" ? `• Loaders Cost: KSh ${(numLoaders * 600).toLo
 📝 *ADDITIONAL NOTES:*
 ${additionalNotes || "None"}
 
-🏢 *COMPANY:* ${user?.company_name || "N/A"}
+🏢 *COMPANY:* ${user?.companyName || "N/A"}
 📧 *Requested by:* ${user?.email || "N/A"}
 
 ---
@@ -838,11 +838,11 @@ ${additionalNotes || "None"}
                           onBlur={() => setTimeout(() => setShowPickupSuggestions(false), 200)}
                         />
                         {showPickupSuggestions && pickupSuggestions.length > 0 && (
-                          <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                          <div className="absolute top-full left-0 right-0 bg-card border border-border rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
                             {pickupSuggestions.map((suggestion, index) => (
                               <div
                                 key={index}
-                                className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm mobile-button"
+                                className="px-3 py-2 hover:bg-muted cursor-pointer text-sm mobile-button"
                                 onClick={() => handlePickupSuggestionSelect(suggestion)}
                               >
                                 <div className="font-medium">{suggestion.name}</div>
@@ -890,11 +890,11 @@ ${additionalNotes || "None"}
                           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                         />
                         {showSuggestions && dropoffSuggestions.length > 0 && (
-                          <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                          <div className="absolute top-full left-0 right-0 bg-card border border-border rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
                             {dropoffSuggestions.map((suggestion, index) => (
                               <div
                                 key={index}
-                                className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm mobile-button"
+                                className="px-3 py-2 hover:bg-muted cursor-pointer text-sm mobile-button"
                                 onClick={() => handleSuggestionSelect(suggestion)}
                               >
                                 <div className="font-medium">{suggestion.name}</div>

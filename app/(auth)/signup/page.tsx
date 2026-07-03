@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useMutation } from "convex/react"
+import { useConvexAuth, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -64,8 +64,18 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const { signUp } = useAuth()
+  const { isAuthenticated } = useConvexAuth()
   const updateCompany = useMutation(api.companies.updateCompany)
   const setCompanyKind = useMutation(api.companies.setCompanyKind)
+
+  // signUp() resolves before the new session token reaches the Convex client,
+  // so mutations fired right after can briefly run unauthenticated. Track the
+  // live auth state in a ref so handleSubmit can await it (a hook value would
+  // be stale inside the async closure).
+  const isAuthedRef = useRef(isAuthenticated)
+  useEffect(() => {
+    isAuthedRef.current = isAuthenticated
+  }, [isAuthenticated])
 
   const updateFormData = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -148,13 +158,16 @@ export default function SignUpPage() {
         description:
           formData.userType === "company" ? formData.companyDescription : formData.description,
       };
-      // signUp() resolves before the new session token reaches the Convex
-      // client, so these mutations can briefly run unauthenticated. Retry until
-      // the token propagates. seedForNewUser already created the company (as a
-      // landlord), so failing here is non-fatal — it just leaves the details
-      // unset / the company type as landlord.
+      // Wait for the session token to reach the Convex client before firing the
+      // mutations, so they never run unauthenticated (which would log noisy
+      // "Not authenticated" server errors to the console). seedForNewUser
+      // already created the company as a landlord, so if auth never resolves
+      // this is non-fatal — it just leaves the details unset / kind as landlord.
       const isPropertyManager = formData.userType === "company";
-      for (let attempt = 0; attempt < 10; attempt++) {
+      for (let waited = 0; !isAuthedRef.current && waited < 5000; waited += 150) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+      if (isAuthedRef.current) {
         try {
           await updateCompany(companyArgs);
           // A "company" sign-up is a property manager; flip the company kind
@@ -162,13 +175,9 @@ export default function SignUpPage() {
           if (isPropertyManager) {
             await setCompanyKind({ kind: "property_manager" });
           }
-          break;
         } catch (err: any) {
-          if (attempt < 9 && /not authenticated/i.test(err?.message ?? "")) {
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            continue;
-          }
-          break;
+          // Non-fatal: the account already exists; details can be set in Settings.
+          console.error("Post-signup company update failed:", err);
         }
       }
 
@@ -459,7 +468,7 @@ export default function SignUpPage() {
             <div className="space-y-4">
               <div className="bg-gray-50 p-4 rounded-lg max-h-60 overflow-y-auto">
                 <h3 className="font-medium mb-2">Terms and Conditions</h3>
-                <div className="text-sm text-gray-600 space-y-2">
+                {/* <div className="text-sm text-gray-600 space-y-2">
                   <p>By creating an account with Swyft Agent, you agree to:</p>
                   <ul className="list-disc list-inside space-y-1 ml-4">
                     <li>Provide accurate and truthful information</li>
@@ -480,7 +489,7 @@ export default function SignUpPage() {
                     </Link>
                     .
                   </p>
-                </div>
+                </div> */}
               </div>
 
               <div className="flex items-center space-x-2">

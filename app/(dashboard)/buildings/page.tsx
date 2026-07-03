@@ -45,7 +45,7 @@ export default function BuildingsPage() {
     return (
       <div className="w-full space-y-4 p-4 md:p-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Buildings</h1>
+          <h1 className="text-3xl font-bold text-foreground">Buildings</h1>
           <Button asChild>
             <Link href="/new-building">
               <Plus className="mr-2 h-4 w-4" />
@@ -57,14 +57,14 @@ export default function BuildingsPage() {
           {[...Array(6)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardHeader>
-                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                <div className="h-4 bg-secondary rounded w-3/4"></div>
+                <div className="h-3 bg-secondary rounded w-1/2"></div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <div className="h-3 bg-gray-200 rounded w-full"></div>
-                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-                  <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+                  <div className="h-3 bg-secondary rounded w-full"></div>
+                  <div className="h-3 bg-secondary rounded w-2/3"></div>
+                  <div className="h-6 bg-secondary rounded w-1/3"></div>
                 </div>
               </CardContent>
             </Card>
@@ -78,8 +78,8 @@ export default function BuildingsPage() {
     <div className="w-full space-y-4 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Buildings</h1>
-          <p className="text-gray-600 mt-1">Manage your property buildings</p>
+          <h1 className="text-3xl font-bold text-foreground">Buildings</h1>
+          <p className="text-muted-foreground mt-1">Manage your property buildings</p>
         </div>
         <Button asChild>
           <Link href="/new-building">
@@ -120,8 +120,8 @@ export default function BuildingsPage() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="text-center">
               <BuildingIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No buildings found</h3>
-              <p className="text-gray-600 mb-4">
+              <h3 className="text-lg font-medium text-foreground mb-2">No buildings found</h3>
+              <p className="text-muted-foreground mb-4">
                 {searchTerm || filterType !== "all"
                   ? "Try adjusting your search or filters"
                   : "Get started by adding your first building"}
@@ -143,7 +143,7 @@ export default function BuildingsPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-lg line-clamp-1">{building.name}</CardTitle>
-                    <div className="flex items-center text-gray-600 text-sm mt-1">
+                    <div className="flex items-center text-muted-foreground text-sm mt-1">
                       <MapPin className="h-4 w-4 mr-1" />
                       <span className="line-clamp-1">
                         {[building.address, building.city].filter(Boolean).join(", ") || "No address"}
@@ -160,20 +160,20 @@ export default function BuildingsPage() {
 
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center text-gray-600">
+                  <div className="flex items-center text-muted-foreground">
                     <BuildingIcon className="h-4 w-4 mr-1" />
                     <span className="capitalize">{building.propertyType ?? "property"}</span>
                   </div>
-                  <div className="flex items-center text-gray-600">
+                  <div className="flex items-center text-muted-foreground">
                     <Users className="h-4 w-4 mr-1" />
                     <span>{building.totalUnits ?? 0} units</span>
                   </div>
                 </div>
 
-                {building.description && <p className="text-sm text-gray-600 line-clamp-2">{building.description}</p>}
+                {building.description && <p className="text-sm text-muted-foreground line-clamp-2">{building.description}</p>}
 
                 <div className="flex items-center justify-between pt-2 border-t">
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     Added {new Date(building._creationTime).toLocaleDateString()}
                   </p>
 

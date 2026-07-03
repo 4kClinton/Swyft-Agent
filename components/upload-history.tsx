@@ -41,7 +41,7 @@ export function UploadHistory() {
     if (!user) return
 
     try {
-      const response = await fetch(`/api/uploads?company_id=${user.company_account_id}`)
+      const response = await fetch(`/api/uploads?company_id=${user.companyId}`)
       if (response.ok) {
         const { uploads } = await response.json()
         setUploads(uploads)
@@ -84,7 +84,7 @@ export function UploadHistory() {
   }
 
   const getTypeColor = (type: string | null) => {
-    if (!type) return "bg-gray-100 text-gray-800"
+    if (!type) return "bg-muted text-foreground"
 
     const colors: Record<string, string> = {
       tenants: "bg-blue-100 text-blue-800",
@@ -93,7 +93,7 @@ export function UploadHistory() {
       units: "bg-purple-100 text-purple-800",
       payments: "bg-yellow-100 text-yellow-800",
     }
-    return colors[type] || "bg-gray-100 text-gray-800"
+    return colors[type] || "bg-muted text-foreground"
   }
 
   const formatFileSize = (bytes: number) => {
@@ -110,7 +110,7 @@ export function UploadHistory() {
         <CardContent className="p-6">
           <div className="flex items-center justify-center">
             <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
-            <span className="ml-2 text-gray-600">Loading upload history...</span>
+            <span className="ml-2 text-muted-foreground">Loading upload history...</span>
           </div>
         </CardContent>
       </Card>
@@ -130,17 +130,17 @@ export function UploadHistory() {
         {uploads.length === 0 ? (
           <div className="text-center py-8">
             <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No uploads yet</p>
-            <p className="text-sm text-gray-500">Upload your first file to get started</p>
+            <p className="text-muted-foreground">No uploads yet</p>
+            <p className="text-sm text-muted-foreground">Upload your first file to get started</p>
           </div>
         ) : (
           <div className="space-y-4">
             {uploads.map((upload) => (
-              <div key={upload.id} className="border rounded-lg p-4 hover:bg-gray-50">
+              <div key={upload.id} className="border rounded-lg p-4 hover:bg-muted">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <FileSpreadsheet className="h-4 w-4 text-gray-600" />
+                      <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
                       <span className="font-medium">{upload.file_name}</span>
                       <Badge className={getStatusColor(upload.status)}>
                         {getStatusIcon(upload.status)}
@@ -148,7 +148,7 @@ export function UploadHistory() {
                       </Badge>
                     </div>
 
-                    <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         {formatDistanceToNow(new Date(upload.uploaded_at), { addSuffix: true })}

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireCompany, assertSameCompany } from "./lib/rbac";
+import { reopenListingsOnVacant } from "./marketplace";
 
 export const listByTenant = query({
   args: { tenantId: v.id("tenants") },
@@ -69,6 +70,8 @@ export const end = mutation({
     assertSameCompany(lease, companyId);
     await ctx.db.patch(id, { status: "ended", endDate: Date.now() });
     await ctx.db.patch(lease!.unitId, { status: "vacant" });
+    // The unit re-opening may bring its Swyft listing back to the feed.
+    await reopenListingsOnVacant(ctx, lease!.unitId);
     return null;
   },
 });

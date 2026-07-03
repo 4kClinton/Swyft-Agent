@@ -16,7 +16,7 @@ interface RestrictedPageWrapperProps {
 }
 
 export function RestrictedPageWrapper({ children, pageName }: RestrictedPageWrapperProps) {
-  const { user, profile } = useAuth()
+  const { user } = useAuth()
   const [isAuthorized, setIsAuthorized] = useState<boolean>(true) // Default to true to avoid unnecessary blur
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [accessCode, setAccessCode] = useState("")
@@ -26,10 +26,10 @@ export function RestrictedPageWrapper({ children, pageName }: RestrictedPageWrap
   // Simplified authorization check
   useEffect(() => {
     // For demo purposes, we'll just show the dialog without blurring first
-    if (profile && profile.role !== "admin") {
+    if (user && user.role !== "admin") {
       setShowAuthDialog(true)
     }
-  }, [profile])
+  }, [user])
 
   // Handle access code verification
   const verifyAccessCode = () => {

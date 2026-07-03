@@ -17,6 +17,7 @@ import {
   Calendar,
   DollarSign,
   Menu,
+  Upload,
 } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/components/auth-provider"
@@ -113,6 +114,13 @@ export default function DashboardPage() {
           href: "/tenants/add",
           color: "bg-orange-500",
         },
+        {
+          title: "Import Data",
+          description: "Migrate tenants & buildings",
+          icon: Upload,
+          href: "/import",
+          color: "bg-teal-500",
+        },
         ...baseActions,
       ]
     }
@@ -142,10 +150,10 @@ export default function DashboardPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-muted flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
-            <p className="text-center text-gray-600">Please log in to view your dashboard.</p>
+            <p className="text-center text-muted-foreground">Please log in to view your dashboard.</p>
           </CardContent>
         </Card>
       </div>
@@ -162,12 +170,12 @@ export default function DashboardPage() {
           {[...Array(4)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="h-4 bg-gray-200 rounded w-20"></div>
-                <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                <div className="h-4 bg-secondary rounded w-20"></div>
+                <div className="h-4 w-4 bg-secondary rounded"></div>
               </CardHeader>
               <CardContent>
-                <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-24"></div>
+                <div className="h-8 bg-secondary rounded w-16 mb-2"></div>
+                <div className="h-3 bg-secondary rounded w-24"></div>
               </CardContent>
             </Card>
           ))}
@@ -177,16 +185,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-muted">
       {/* Mobile Header */}
-      <div className="sticky top-0 z-40 bg-white border-b border-gray-200 px-4 py-3 md:hidden">
+      <div className="sticky top-0 z-40 bg-card border-b border-border px-4 py-3 md:hidden">
         <div className="flex items-center gap-3">
-          <SidebarTrigger className="h-8 w-8 text-gray-600 hover:bg-gray-100 rounded-md">
+          <SidebarTrigger className="h-8 w-8 text-muted-foreground hover:bg-muted rounded-md">
             <Menu className="h-5 w-5" />
           </SidebarTrigger>
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>
-            <p className="text-xs text-gray-500">Welcome back, {user.email}</p>
+            <h1 className="text-lg font-semibold text-foreground">Dashboard</h1>
+            <p className="text-xs text-muted-foreground">Welcome back, {user.email}</p>
           </div>
         </div>
       </div>
@@ -194,8 +202,8 @@ export default function DashboardPage() {
       <div className="container mx-auto py-6 px-4 max-w-7xl space-y-6">
         {/* Desktop Header */}
         <div className="hidden md:block">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">Welcome back, {user.email}</p>
+          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground mt-2">Welcome back, {user.email}</p>
         </div>
 
         {/* Stats Cards - Mobile: 2x2 Grid, Desktop: 4 columns */}

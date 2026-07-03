@@ -105,7 +105,7 @@ export function FinanceCharts({ type = "overview" }: FinanceChartsProps) {
                     outerRadius={100}
                     fill="#8884d8"
                     dataKey="amount"
-                    label={({ category, percentage }) => `${category} ${percentage}%`}
+                    label={({ category, percentage }: any) => `${category} ${percentage}%`}
                   >
                     {expenseBreakdownData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
@@ -184,7 +184,7 @@ export function FinanceCharts({ type = "overview" }: FinanceChartsProps) {
                     outerRadius={100}
                     fill="#8884d8"
                     dataKey="amount"
-                    label={({ category, percentage }) => `${category} ${percentage}%`}
+                    label={({ category, percentage }: any) => `${category} ${percentage}%`}
                   >
                     {expenseBreakdownData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />

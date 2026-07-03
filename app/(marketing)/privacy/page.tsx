@@ -12,8 +12,11 @@ export default function PrivacyPage() {
       <p className="text-[15px] leading-relaxed text-[#3A4742]">
         This Privacy Policy explains how Swyft (&ldquo;Swyft&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;)
         collects, uses, shares, and protects your personal data when you use our platform and services
-        (the &ldquo;Service&rdquo;). We process personal data in accordance with the Kenya Data
-        Protection Act, 2019.
+        (the &ldquo;Service&rdquo;). Swyft is operated by Taleel Holdings Ltd, which is the data
+        controller for personal data processed through the Service for the purposes of the Kenya Data
+        Protection Act, 2019. [Insert ODPC registration number once registered &mdash; register before
+        onboarding paying landlords; financial-data processing at scale makes this effectively
+        mandatory.]
       </p>
 
       <LegalSection heading="1. Data we collect">
@@ -71,13 +74,29 @@ export default function PrivacyPage() {
             authorise;
           </li>
           <li>
+            Third-party payment-notification infrastructure &mdash; including bank and gateway
+            providers such as Equity/Finserve (Jenga), Co-operative Bank, Stanbic, KCB, and Safaricom
+            (Daraja) &mdash; strictly to receive read-only notifications of payments into the accounts
+            you authorise. We do not grant these providers the ability to move your funds through the
+            Service, and they process data under their own terms;
+          </li>
+          <li>
             Authorities or other parties where required by law or to protect our rights and the safety
             of users.
           </li>
         </ul>
       </LegalSection>
 
-      <LegalSection heading="5. Data retention">
+      <LegalSection heading="5. Tenant and payer data">
+        <p>
+          Where a landlord or property manager connects an account, that person is the data controller
+          for the tenant and payer data observed on it, and Swyft processes that data as their processor
+          &mdash; solely to reconcile rent, generate receipts, and track arrears. Swyft does not hold or
+          move funds, and does not use payer data for any other purpose.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="6. Data retention">
         <p>
           We retain personal data for as long as your account is active and as needed to provide the
           Service, comply with legal obligations, resolve disputes, and enforce our agreements. When
@@ -85,7 +104,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="6. Data security">
+      <LegalSection heading="7. Data security">
         <p>
           We use reasonable technical and organisational measures to protect personal data against
           unauthorised access, loss, or misuse. No method of transmission or storage is completely
@@ -93,7 +112,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="7. Your rights">
+      <LegalSection heading="8. Your rights">
         <p>Subject to applicable law, you have the right to:</p>
         <ul className="ml-5 list-disc space-y-1.5">
           <li>Access the personal data we hold about you;</li>
@@ -108,14 +127,14 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="8. Children's privacy">
+      <LegalSection heading="9. Children's privacy">
         <p>
           The Service is not directed to children under 18, and we do not knowingly collect personal
           data from them.
         </p>
       </LegalSection>
 
-      <LegalSection heading="9. Changes to this policy">
+      <LegalSection heading="10. Changes to this policy">
         <p>
           We may update this Privacy Policy from time to time. If we make material changes, we will
           take reasonable steps to notify you. The &ldquo;Last updated&rdquo; date above reflects the
@@ -123,7 +142,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="10. Contact us">
+      <LegalSection heading="11. Contact us">
         <p>
           For privacy questions or requests, email us at{" "}
           <a href="mailto:support@swyft.africa" className="font-medium text-emerald-700 hover:underline">

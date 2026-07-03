@@ -67,7 +67,7 @@ export default function ReceiptsPage() {
                   <span className="col-span-2 text-right">KES {r.amount.toLocaleString()}</span>
                   <span className="col-span-3 flex items-center justify-end gap-1">
                     {busy === r._id && <Loader2 className="h-3 w-3 animate-spin" />}
-                    {r.smsState && <Badge className={smsColor[r.smsState] ?? "bg-gray-100"}>{r.smsState}</Badge>}
+                    {r.smsState && <Badge className={smsColor[r.smsState] ?? "bg-muted"}>{r.smsState}</Badge>}
                   </span>
                 </button>
               ))}

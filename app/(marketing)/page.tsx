@@ -1,13 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SwyftLogo } from "@/components/swyft-logo"
+import { Reveal } from "@/components/reveal"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import {
@@ -25,6 +27,9 @@ import {
   ChevronDown,
   Lock,
   TrendingUp,
+  MapPin,
+  BadgeCheck,
+  Globe,
 } from "lucide-react"
 
 const ACCENT = "#059669"
@@ -38,6 +43,7 @@ export default function LandingPage() {
       <Problem />
       <FillFaster />
       <GetPaidCleaner />
+      <BuiltFor />
       <Comparison />
       <Pricing />
       <Waitlist />
@@ -49,8 +55,19 @@ export default function LandingPage() {
 
 /* ------------------------------------------------------------------ Nav */
 function Nav() {
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
   return (
-    <header className="sticky top-0 z-50 border-b border-[#E6EBE8] bg-white/80 backdrop-blur-md">
+    <header
+      className={`sticky top-0 z-50 border-b bg-white/80 backdrop-blur-md transition-shadow duration-300 ${
+        scrolled ? "border-[#E6EBE8] shadow-[0_1px_20px_rgba(10,31,23,0.06)]" : "border-transparent"
+      }`}
+    >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
         <Link href="/" className="flex items-center">
           <SwyftLogo className="h-8 w-auto" priority />
@@ -81,38 +98,87 @@ function Hero() {
   return (
     <section className="relative overflow-hidden">
       <div
-        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.06]"
-        style={{ background: `radial-gradient(60% 50% at 50% 0%, ${ACCENT} 0%, transparent 70%)` }}
+        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.07]"
+        style={{ background: `radial-gradient(55% 45% at 75% 10%, ${ACCENT} 0%, transparent 70%)` }}
       />
-      <div className="mx-auto max-w-6xl px-5 pb-20 pt-20 text-center md:pt-28">
-        <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-[#E6EBE8] bg-[#F7F9F8] px-4 py-1.5 text-xs font-medium text-[#5B6B64]">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Built for Kenyan landlords & property managers
+      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-20 pt-16 md:grid-cols-2 md:pt-24 lg:gap-16">
+        {/* Copy */}
+        <div className="text-center md:text-left">
+          <Reveal>
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#E6EBE8] bg-[#F7F9F8] px-4 py-1.5 text-xs font-medium text-[#5B6B64]">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Built for Kenyan landlords &amp; property managers
+            </div>
+          </Reveal>
+          <Reveal delay={60}>
+            <h1 className="text-4xl font-extrabold leading-[1.05] tracking-[-0.03em] md:text-5xl lg:text-6xl">
+              List once. Fill faster.<br />
+              <span className="text-emerald-600">Get paid cleaner.</span>
+            </h1>
+          </Reveal>
+          <Reveal delay={120}>
+            <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-[#5B6B64] md:mx-0">
+              Put your vacant unit in front of verified renters who are actually moving — and let
+              Swyft run rent collection, invoices and receipts on the M-Pesa paybill you already use.
+            </p>
+          </Reveal>
+          <Reveal delay={180}>
+            <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row md:justify-start">
+              <a href="#waitlist" className="w-full sm:w-auto">
+                <Button size="lg" className="h-12 w-full bg-emerald-600 px-7 text-base font-semibold transition-transform hover:-translate-y-0.5 hover:bg-emerald-700">
+                  List a vacant unit free
+                  <ArrowRight className="ml-1.5 h-4 w-4" />
+                </Button>
+              </a>
+              <a href="#paid" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="h-12 w-full border-[#E6EBE8] px-7 text-base font-semibold">
+                  See how rent collection works
+                </Button>
+              </a>
+            </div>
+          </Reveal>
+          <Reveal delay={240}>
+            <p className="mt-5 max-w-md text-sm text-[#5B6B64] md:mx-0">
+              The end-to-end ecosystem where people discover and move into their dream spaces — the
+              easiest way possible.
+            </p>
+          </Reveal>
         </div>
-        <h1 className="mx-auto max-w-4xl text-4xl font-extrabold leading-[1.05] tracking-[-0.03em] md:text-6xl">
-          List once. Fill faster.<br />
-          <span className="text-emerald-600">Get paid cleaner.</span>
-        </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[#5B6B64]">
-          Put your vacant unit in front of verified renters who are actually moving — and let
-          Swyft run rent collection, invoices and receipts on the M-Pesa paybill you already use.
-        </p>
-        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <a href="#waitlist">
-            <Button size="lg" className="h-12 bg-emerald-600 px-7 text-base font-semibold hover:bg-emerald-700">
-              List a vacant unit free
-              <ArrowRight className="ml-1.5 h-4 w-4" />
-            </Button>
-          </a>
-          <a href="#paid">
-            <Button size="lg" variant="outline" className="h-12 border-[#E6EBE8] px-7 text-base font-semibold">
-              See how rent collection works
-            </Button>
-          </a>
-        </div>
-        <p className="mt-4 text-sm text-[#5B6B64]">
-          Keep your paybill. Keep how tenants pay. Swyft never touches your money.
-        </p>
+
+        {/* Visual */}
+        <Reveal delay={120} className="relative mx-auto w-full max-w-md md:max-w-none">
+          <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] border border-[#E6EBE8] bg-[#F7F9F8] shadow-[0_30px_60px_-20px_rgba(10,31,23,0.25)]">
+            <Image
+              src="/landing/hero-professional.jpg"
+              alt="A property manager reviewing verified tenant documents in a modern Nairobi office"
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 45vw"
+              className="object-cover"
+            />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0A1F17]/25 via-transparent to-transparent" />
+          </div>
+
+          {/* Floating verified badge */}
+          <div className="swyft-float absolute -left-3 top-6 flex items-center gap-2 rounded-2xl border border-[#E6EBE8] bg-white/90 px-3.5 py-2.5 shadow-lg backdrop-blur md:-left-6">
+            <Image src="/landing/swyft-mark.png" alt="" width={28} height={28} className="h-7 w-7" />
+            <div className="text-left">
+              <div className="text-[11px] font-bold leading-tight text-[#0A1F17]">Verified renter</div>
+              <div className="text-[10px] leading-tight text-[#5B6B64]">move-ready</div>
+            </div>
+          </div>
+
+          {/* Floating reconciled chip */}
+          <div className="swyft-float-slow absolute -bottom-4 right-2 flex items-center gap-2.5 rounded-2xl border border-[#E6EBE8] bg-white/90 px-4 py-3 shadow-lg backdrop-blur md:right-0">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ECFDF5]">
+              <Check className="h-4 w-4 text-emerald-600" />
+            </span>
+            <div className="text-left">
+              <div className="text-[11px] font-bold leading-tight text-[#0A1F17]">Rent reconciled</div>
+              <div className="text-[10px] leading-tight text-[#5B6B64]">KES 45,000 · auto-matched</div>
+            </div>
+          </div>
+        </Reveal>
       </div>
     </section>
   )
@@ -157,24 +223,48 @@ function Problem() {
   ]
   return (
     <section className="mx-auto max-w-6xl px-5 py-20 md:py-28">
-      <div className="max-w-2xl">
-        <h2 className="text-3xl font-bold tracking-[-0.02em] md:text-4xl">
-          Every empty day is rent you never get back.
-        </h2>
-        <p className="mt-4 text-lg leading-relaxed text-[#5B6B64]">
-          Yet the tools to fill the unit and run the building are broken in three ways.
-        </p>
-      </div>
-      <div className="mt-12 grid gap-5 md:grid-cols-3">
-        {problems.map((p, i) => (
-          <div key={p.title} className="rounded-2xl border border-[#E6EBE8] bg-white p-7">
-            <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-[#ECFDF5] text-sm font-bold text-emerald-700">
-              {i + 1}
+      <div className="grid items-center gap-12 md:grid-cols-2 lg:gap-16">
+        {/* Emotional anchor image */}
+        <Reveal className="order-2 md:order-1">
+          <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] border border-[#E6EBE8] shadow-[0_30px_60px_-25px_rgba(10,31,23,0.3)]">
+            <Image
+              src="/landing/problem-stress.jpg"
+              alt="A landlord overwhelmed by manual rent admin and scattered paperwork"
+              fill
+              sizes="(max-width: 768px) 100vw, 45vw"
+              className="object-cover"
+            />
+            <div className="absolute bottom-4 left-4 right-4 rounded-xl bg-[#0A1F17]/80 px-4 py-3 text-sm font-medium text-white backdrop-blur">
+              SMS, Sheets &amp; paper receipts — until something slips.
             </div>
-            <h3 className="text-lg font-semibold">{p.title}</h3>
-            <p className="mt-2 text-[15px] leading-relaxed text-[#5B6B64]">{p.body}</p>
           </div>
-        ))}
+        </Reveal>
+
+        <div className="order-1 md:order-2">
+          <Reveal>
+            <h2 className="text-3xl font-bold tracking-[-0.02em] md:text-4xl">
+              Every empty day is rent you never get back.
+            </h2>
+            <p className="mt-4 text-lg leading-relaxed text-[#5B6B64]">
+              Yet the tools to fill the unit and run the building are broken in three ways.
+            </p>
+          </Reveal>
+          <div className="mt-8 space-y-4">
+            {problems.map((p, i) => (
+              <Reveal key={p.title} delay={i * 80}>
+                <div className="flex gap-4 rounded-2xl border border-[#E6EBE8] bg-white p-5 transition-shadow hover:shadow-md">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#ECFDF5] text-sm font-bold text-emerald-700">
+                    {i + 1}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold">{p.title}</h3>
+                    <p className="mt-1.5 text-[15px] leading-relaxed text-[#5B6B64]">{p.body}</p>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -185,7 +275,7 @@ function FillFaster() {
   return (
     <section id="fill" className="bg-[#F7F9F8]">
       <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 md:grid-cols-2 md:py-28">
-        <div>
+        <Reveal>
           <span className="text-sm font-semibold uppercase tracking-wider text-emerald-600">
             Fill faster
           </span>
@@ -209,31 +299,21 @@ function FillFaster() {
               </li>
             ))}
           </ul>
-        </div>
+        </Reveal>
         {/* Phone mockup */}
-        <div className="flex justify-center">
+        <Reveal delay={120} className="flex justify-center">
           <div className="relative h-[440px] w-[220px] rounded-[2.2rem] border-[6px] border-[#0A1F17] bg-[#0A1F17] shadow-2xl">
             <div className="absolute left-1/2 top-2 h-4 w-20 -translate-x-1/2 rounded-full bg-[#0A1F17]" />
-            <div className="h-full w-full overflow-hidden rounded-[1.7rem] bg-gradient-to-b from-emerald-700 to-emerald-900 p-4 pt-8">
-              <div className="flex items-center gap-2 text-white/90">
-                <Video className="h-4 w-4" />
-                <span className="text-xs font-semibold">Swyft reels</span>
-              </div>
-              <div className="mt-4 space-y-3">
-                <div className="rounded-xl bg-white/10 p-3 backdrop-blur">
-                  <div className="h-20 rounded-lg bg-white/15" />
-                  <p className="mt-2 text-[11px] font-semibold text-white">2-bed · Kilimani</p>
-                  <p className="text-[11px] text-white/70">KES 45,000/mo · verified</p>
-                </div>
-                <div className="rounded-xl bg-white/10 p-3 backdrop-blur">
-                  <div className="h-20 rounded-lg bg-white/15" />
-                  <p className="mt-2 text-[11px] font-semibold text-white">Bedsitter · Roysambu</p>
-                  <p className="text-[11px] text-white/70">KES 12,000/mo · verified</p>
-                </div>
-              </div>
+            <div className="h-full w-full overflow-hidden rounded-[1.7rem] bg-black">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/swyft-reel-ngong.jpeg"
+                alt="Swyft reels — a verified 2-bedroom listing in Matasia, Ngong on the renter app"
+                className="h-full w-full object-cover"
+              />
             </div>
           </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   )
@@ -249,37 +329,143 @@ function GetPaidCleaner() {
   ]
   return (
     <section id="paid" className="mx-auto max-w-6xl px-5 py-20 md:py-28">
-      <div className="mx-auto max-w-2xl text-center">
-        <span className="text-sm font-semibold uppercase tracking-wider text-emerald-600">
-          Get paid cleaner
-        </span>
-        <h2 className="mt-3 text-3xl font-bold tracking-[-0.02em] md:text-4xl">
-          Keep your rails. We just show you who paid.
-        </h2>
-        <p className="mt-4 text-lg leading-relaxed text-[#5B6B64]">
-          Peter runs 3 buildings, 68 units, all paying into one Equity paybill. He won't change
-          it — and he shouldn't have to. Swyft reads each payment and reconciles it automatically.
-          <span className="font-semibold text-[#0A1F17]"> No money flows through Swyft.</span>
-        </p>
-      </div>
-
-      {/* Money-flow diagram */}
-      <div className="mx-auto mt-12 flex max-w-3xl flex-col items-center gap-3 rounded-2xl border border-[#E6EBE8] bg-[#F7F9F8] p-6 text-center text-sm font-medium md:flex-row md:justify-between md:text-left">
-        <FlowNode icon={Phone} label="Tenant M-Pesa" />
-        <FlowArrow />
-        <FlowNode icon={Building2} label="Your paybill" sub="unchanged" />
-        <FlowArrow dashed />
-        <FlowNode icon={ShieldCheck} label="Swyft" sub="read-only" accent />
-      </div>
-
-      <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-        {features.map(({ icon: Icon, title, body }) => (
-          <div key={title} className="rounded-2xl border border-[#E6EBE8] bg-white p-6">
-            <Icon className="h-6 w-6 text-emerald-600" />
-            <h3 className="mt-4 font-semibold">{title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-[#5B6B64]">{body}</p>
+      <div className="grid items-center gap-12 md:grid-cols-2 lg:gap-16">
+        <Reveal>
+          <span className="text-sm font-semibold uppercase tracking-wider text-emerald-600">
+            Get paid cleaner
+          </span>
+          <h2 className="mt-3 text-3xl font-bold tracking-[-0.02em] md:text-4xl">
+            Keep your rails. We just show you who paid.
+          </h2>
+          <p className="mt-4 text-lg leading-relaxed text-[#5B6B64]">
+            Peter runs 3 buildings, 68 units, all paying into one Equity paybill. He won't change
+            it — and he shouldn't have to. Swyft reads each payment and reconciles it automatically.
+            <span className="font-semibold text-[#0A1F17]"> No money flows through Swyft.</span>
+          </p>
+          {/* Money-flow diagram */}
+          <div className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-[#E6EBE8] bg-[#F7F9F8] p-6 text-center text-sm font-medium sm:flex-row sm:justify-between sm:text-left">
+            <FlowNode icon={Phone} label="Tenant M-Pesa" />
+            <FlowArrow />
+            <FlowNode icon={Building2} label="Your paybill" sub="unchanged" />
+            <FlowArrow dashed />
+            <FlowNode icon={ShieldCheck} label="Swyft" sub="read-only" accent />
           </div>
+        </Reveal>
+
+        <Reveal delay={120} className="relative mx-auto w-full max-w-md md:max-w-none">
+          <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] border border-[#E6EBE8] shadow-[0_30px_60px_-25px_rgba(10,31,23,0.3)]">
+            <Image
+              src="/landing/peter-landlord.jpg"
+              alt="Peter, a Nairobi landlord who manages multiple buildings on one paybill"
+              fill
+              sizes="(max-width: 768px) 100vw, 45vw"
+              className="object-cover"
+            />
+          </div>
+          <div className="swyft-float absolute -bottom-4 -left-3 rounded-2xl border border-[#E6EBE8] bg-white/90 px-4 py-3 shadow-lg backdrop-blur md:-left-6">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-[#5B6B64]">Peter · Nairobi</div>
+            <div className="text-base font-bold text-[#0A1F17]">3 buildings · 68 units</div>
+            <div className="text-[11px] text-emerald-600">1 Equity paybill — unchanged</div>
+          </div>
+        </Reveal>
+      </div>
+
+      <div className="mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {features.map(({ icon: Icon, title, body }, i) => (
+          <Reveal key={title} delay={i * 80}>
+            <div className="h-full rounded-2xl border border-[#E6EBE8] bg-white p-6 transition-all hover:-translate-y-1 hover:shadow-md">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#ECFDF5]">
+                <Icon className="h-5 w-5 text-emerald-600" />
+              </span>
+              <h3 className="mt-4 font-semibold">{title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-[#5B6B64]">{body}</p>
+            </div>
+          </Reveal>
         ))}
+      </div>
+    </section>
+  )
+}
+
+/* ----------------------------------------------------------- Built for */
+function BuiltFor() {
+  const people = [
+    {
+      img: "/landing/persona-landlord.jpg",
+      alt: "A Kenyan landlord reviewing a building report by the window",
+      icon: Building2,
+      role: "The hands-on landlord",
+      body: "Owns a few buildings, knows every tenant by name, and is tired of chasing rent over WhatsApp.",
+      tag: "Fills units faster",
+    },
+    {
+      img: "/landing/persona-manager.jpg",
+      alt: "Two property managers reviewing rent-roll and arrears reports together",
+      icon: TrendingUp,
+      role: "The property manager",
+      body: "Runs dozens of units across owners and needs clean rent-rolls, arrears and statements — not Sheets.",
+      tag: "Automates the back office",
+    },
+    {
+      img: "/landing/persona-diaspora.jpg",
+      alt: "A diaspora property owner reviewing statements remotely",
+      icon: Globe,
+      role: "The diaspora owner",
+      body: "Manages property from abroad and just wants to see who paid, who's late, and the proof — at a glance.",
+      tag: "Full visibility, anywhere",
+    },
+  ]
+  return (
+    <section className="bg-[#F7F9F8]">
+      <div className="mx-auto max-w-6xl px-5 py-20 md:py-28">
+        <Reveal className="mx-auto max-w-2xl text-center">
+          <span className="text-sm font-semibold uppercase tracking-wider text-emerald-600">
+            Who it's for
+          </span>
+          <h2 className="mt-3 text-3xl font-bold tracking-[-0.02em] md:text-4xl">
+            Built for people like these.
+          </h2>
+          <p className="mt-4 text-lg leading-relaxed text-[#5B6B64]">
+            From a single block in Ngong to a portfolio managed from Dallas — Swyft fits the way
+            you already work.
+          </p>
+        </Reveal>
+
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {people.map(({ img, alt, icon: Icon, role, body, tag }, i) => (
+            <Reveal key={role} delay={i * 100}>
+              <div className="group h-full overflow-hidden rounded-2xl border border-[#E6EBE8] bg-white transition-all hover:-translate-y-1 hover:shadow-lg">
+                <div className="relative aspect-[5/4] overflow-hidden">
+                  <Image
+                    src={img}
+                    alt={alt}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#0A1F17] backdrop-blur">
+                    <BadgeCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    {tag}
+                  </span>
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#ECFDF5]">
+                      <Icon className="h-4 w-4 text-emerald-600" />
+                    </span>
+                    <h3 className="font-semibold">{role}</h3>
+                  </div>
+                  <p className="mt-3 text-[15px] leading-relaxed text-[#5B6B64]">{body}</p>
+                </div>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal delay={120} className="mx-auto mt-10 flex max-w-xl items-center justify-center gap-2 text-center text-sm text-[#5B6B64]">
+          <MapPin className="h-4 w-4 shrink-0 text-emerald-600" />
+          Onboarding landlords concierge-style across Nairobi — Equity users first.
+        </Reveal>
       </div>
     </section>
   )
@@ -319,12 +505,14 @@ function Comparison() {
     { label: "Tours & moving bundled", tiktok: "no", competitors: "no", swyft: "yes" },
   ]
   return (
-    <section className="bg-[#F7F9F8]">
+    <section className="bg-white">
       <div className="mx-auto max-w-5xl px-5 py-20 md:py-28">
-        <h2 className="text-center text-3xl font-bold tracking-[-0.02em] md:text-4xl">
-          Why Swyft over the alternatives
-        </h2>
-        <div className="mt-12 overflow-hidden rounded-2xl border border-[#E6EBE8] bg-white">
+        <Reveal>
+          <h2 className="text-center text-3xl font-bold tracking-[-0.02em] md:text-4xl">
+            Why Swyft over the alternatives
+          </h2>
+        </Reveal>
+        <Reveal delay={80} className="mt-12 overflow-hidden rounded-2xl border border-[#E6EBE8] bg-white shadow-[0_20px_50px_-30px_rgba(10,31,23,0.25)]">
           <div className="grid grid-cols-4 border-b border-[#E6EBE8] bg-[#F7F9F8] text-sm font-semibold">
             <div className="p-4" />
             <div className="p-4 text-center text-[#5B6B64]">Post on TikTok</div>
@@ -339,7 +527,7 @@ function Comparison() {
               <Cell v={r.swyft} highlight />
             </div>
           ))}
-        </div>
+        </Reveal>
         <p className="mt-6 text-center text-sm text-[#5B6B64]">
           competitors does the back office. Swyft does the back office <span className="font-semibold text-[#0A1F17]">and</span> brings the demand that fills the unit.
         </p>
@@ -367,37 +555,38 @@ function Pricing() {
   ]
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-5 py-20 md:py-28">
-      <div className="mx-auto max-w-2xl text-center">
+      <Reveal className="mx-auto max-w-2xl text-center">
         <h2 className="text-3xl font-bold tracking-[-0.02em] md:text-4xl">Simple, fair pricing</h2>
         <p className="mt-4 text-lg leading-relaxed text-[#5B6B64]">
           Free to list. Pay only when you want to fill faster or automate the back office.
         </p>
-      </div>
-      <div className="mt-12 grid gap-5 md:grid-cols-3">
-        {tiers.map((t) => (
-          <div
-            key={t.name}
-            className={`relative rounded-2xl border p-7 ${t.highlight ? "border-emerald-600 bg-white shadow-lg shadow-emerald-600/5" : "border-[#E6EBE8] bg-white"}`}
-          >
-            {t.highlight && (
-              <span className="absolute -top-3 left-7 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
-                Most popular
-              </span>
-            )}
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-[#5B6B64]">{t.name}</h3>
-            <div className="mt-3 flex items-baseline gap-1.5">
-              <span className="text-3xl font-extrabold tracking-tight">{t.price}</span>
-              <span className="text-sm text-[#5B6B64]">{t.note}</span>
+      </Reveal>
+      <div className="mt-12 grid items-start gap-5 md:grid-cols-3">
+        {tiers.map((t, i) => (
+          <Reveal key={t.name} delay={i * 90}>
+            <div
+              className={`relative h-full rounded-2xl border p-7 transition-all hover:-translate-y-1 hover:shadow-md ${t.highlight ? "border-emerald-600 bg-white shadow-lg shadow-emerald-600/5 md:-translate-y-2" : "border-[#E6EBE8] bg-white"}`}
+            >
+              {t.highlight && (
+                <span className="absolute -top-3 left-7 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
+                  Most popular
+                </span>
+              )}
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-[#5B6B64]">{t.name}</h3>
+              <div className="mt-3 flex items-baseline gap-1.5">
+                <span className="text-3xl font-extrabold tracking-tight">{t.price}</span>
+                <span className="text-sm text-[#5B6B64]">{t.note}</span>
+              </div>
+              <ul className="mt-6 space-y-3">
+                {t.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2.5 text-[15px]">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="mt-6 space-y-3">
-              {t.features.map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-[15px]">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
+          </Reveal>
         ))}
       </div>
     </section>
