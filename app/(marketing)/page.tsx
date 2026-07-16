@@ -201,7 +201,41 @@ function TrustStrip() {
           </div>
         ))}
       </div>
+      <BankLogosCarousel />
     </section>
+  )
+}
+
+const BANK_LOGOS = [
+  { src: "/images/bank-logos/mpesa.png", alt: "M-Pesa" },
+  { src: "/images/bank-logos/equity.png", alt: "Equity Bank" },
+  { src: "/images/bank-logos/coop.png", alt: "Co-operative Bank" },
+  { src: "/images/bank-logos/kcb.png", alt: "KCB Bank" },
+  { src: "/images/bank-logos/absa.png", alt: "Absa Bank" },
+  { src: "/images/bank-logos/ncba.png", alt: "NCBA Bank" },
+  { src: "/images/bank-logos/stanbic.png", alt: "Stanbic Bank" },
+  { src: "/images/bank-logos/dtb.png", alt: "Diamond Trust Bank" },
+  { src: "/images/bank-logos/I&M.png", alt: "I&M Bank" },
+]
+
+function BankLogosCarousel() {
+  return (
+    <div className="border-t border-[#E6EBE8] py-6">
+      <div className="group relative mx-auto max-w-6xl overflow-hidden px-5 [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
+        <div className="flex w-max animate-marquee items-center gap-12 group-hover:[animation-play-state:paused] md:gap-16">
+          {[...BANK_LOGOS, ...BANK_LOGOS].map((logo, i) => (
+            <Image
+              key={`${logo.src}-${i}`}
+              src={logo.src}
+              alt={logo.alt}
+              width={120}
+              height={40}
+              className="h-8 w-auto shrink-0 object-contain transition md:h-10"
+            />
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
