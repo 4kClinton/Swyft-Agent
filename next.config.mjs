@@ -7,9 +7,16 @@
 //   - Next.js inline hydration scripts + inline styles ('unsafe-inline')
 // The home page is statically prerendered and CDN-cached on Vercel, so a
 // per-request nonce isn't possible — 'unsafe-inline' is required for scripts.
+//
+// In development Next.js compiles the client bundle with eval() for fast
+// refresh, so 'unsafe-eval' must be allowed locally or hydration is blocked by
+// the CSP and every effect-driven component (e.g. scroll reveals) stays hidden.
+// Production stays strict — no 'unsafe-eval'.
+const isDev = process.env.NODE_ENV !== "production"
+
 const contentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://*.gstatic.com",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://maps.googleapis.com https://*.gstatic.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",

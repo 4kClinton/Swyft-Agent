@@ -149,8 +149,8 @@ function Hero() {
         <Reveal delay={120} className="relative mx-auto w-full max-w-md md:max-w-none">
           <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] border border-[#E6EBE8] bg-[#F7F9F8] shadow-[0_30px_60px_-20px_rgba(10,31,23,0.25)]">
             <Image
-              src="/landing/hero-professional.jpg"
-              alt="A property manager reviewing verified tenant documents in a modern Nairobi office"
+              src="/landing/hero-nairobi-apartments.jpg"
+              alt="Residential apartment blocks across Nairobi in the morning light — the kind of units landlords fill and manage with Swyft"
               fill
               priority
               sizes="(max-width: 768px) 100vw, 45vw"
@@ -186,13 +186,14 @@ function Hero() {
 
 function TrustStrip() {
   const items = [
-    { icon: Video, label: "Real video, verified creators" },
-    { icon: ShieldCheck, label: "Move-ready, verified renters" },
-    { icon: Lock, label: "Read-only — money never moves through us" },
-    { icon: Phone, label: "M-Pesa, Equity, Co-op, KCB" },
+    { icon: Lock, label: "Read-only — we never move your money" },
+    { icon: BadgeCheck, label: "Move-ready, verified renters" },
+    { icon: Receipt, label: "Auto-reconciled rent & receipts" },
+    { icon: Wallet, label: "M-Pesa, Equity, Co-op & KCB" },
   ]
   return (
-    <section className="border-y border-[#E6EBE8] bg-[#F7F9F8]">
+    <section className="bg-white">
+      <BankLogosCarousel />
       <div className="mx-auto grid max-w-6xl grid-cols-2 gap-y-4 px-5 py-6 md:grid-cols-4">
         {items.map(({ icon: Icon, label }) => (
           <div key={label} className="flex items-center gap-2.5 text-sm font-medium text-[#5B6B64]">
@@ -201,7 +202,7 @@ function TrustStrip() {
           </div>
         ))}
       </div>
-      <BankLogosCarousel />
+      
     </section>
   )
 }
@@ -387,19 +388,14 @@ function GetPaidCleaner() {
         </Reveal>
 
         <Reveal delay={120} className="relative mx-auto w-full max-w-md md:max-w-none">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] border border-[#E6EBE8] shadow-[0_30px_60px_-25px_rgba(10,31,23,0.3)]">
+          <div className="relative aspect-[3/2] overflow-hidden rounded-[1.75rem] border border-[#E6EBE8] shadow-[0_30px_60px_-25px_rgba(10,31,23,0.3)]">
             <Image
-              src="/landing/peter-landlord.jpg"
-              alt="Peter, a Nairobi landlord who manages multiple buildings on one paybill"
+              src="/landing/rent-received.png"
+              alt="A Nairobi landlord checks his phone as Swyft confirms an M-Pesa rent payment and a newly occupied unit"
               fill
               sizes="(max-width: 768px) 100vw, 45vw"
               className="object-cover"
             />
-          </div>
-          <div className="swyft-float absolute -bottom-4 -left-3 rounded-2xl border border-[#E6EBE8] bg-white/90 px-4 py-3 shadow-lg backdrop-blur md:-left-6">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-[#5B6B64]">Peter · Nairobi</div>
-            <div className="text-base font-bold text-[#0A1F17]">3 buildings · 68 units</div>
-            <div className="text-[11px] text-emerald-600">1 Equity paybill — unchanged</div>
           </div>
         </Reveal>
       </div>
@@ -585,7 +581,7 @@ function Pricing() {
   const tiers = [
     { name: "List", price: "Free", note: "Win supply & trust", features: ["List vacant units", "Qualified inquiries", "Basic rent tracking"] },
     { name: "Boost", price: "from KES 500", note: "per 7 days", features: ["Top-of-feed placement", "Faster vacancy fill", "Pay via M-Pesa STK"], highlight: true },
-    { name: "RPMS", price: "from KES 2,500", note: "per month", features: ["Auto-invoicing & receipts", "Statements & reports", "Multi-bank reconciliation"] },
+    { name: "RPMS", price: "from KES 5,000", note: "per month", features: ["Auto-invoicing & receipts", "Statements & reports", "Multi-bank reconciliation"] },
   ]
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-5 py-20 md:py-28">
