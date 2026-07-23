@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
-import { requireCompany, assertSameCompany } from "./lib/rbac";
+import { requireCompany, assertSameCompany, requireActiveSubscription } from "./lib/rbac";
 import { normalizePhone } from "./lib/phone";
 import { retireListingsOnOccupied, reopenListingsOnVacant } from "./marketplace";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -254,6 +254,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const { companyId } = await requireCompany(ctx);
 
+    await requireActiveSubscription(ctx, companyId);
     const phone = normalizePhone(args.phone);
     if (!phone) {
       throw new Error(
@@ -328,6 +329,7 @@ export const createWithUnit = mutation({
     const { companyId } = await requireCompany(ctx);
     assertSameCompany(await ctx.db.get(args.buildingId), companyId);
 
+    await requireActiveSubscription(ctx, companyId);
     const phone = normalizePhone(args.phone);
     if (!phone) {
       throw new Error(

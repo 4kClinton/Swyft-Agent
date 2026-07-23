@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, internalQuery } from "./_generated/server";
-import { requireCompany, assertSameCompany } from "./lib/rbac";
+import { requireCompany, assertSameCompany, requireActiveSubscription } from "./lib/rbac";
 import { cleanUnitNumber } from "./lib/importSchema";
 
 const unitStatus = v.union(
@@ -46,6 +46,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const { companyId } = await requireCompany(ctx);
+    await requireActiveSubscription(ctx, companyId);
     assertSameCompany(await ctx.db.get(args.buildingId), companyId);
     const { status, ...rest } = args;
     return await ctx.db.insert("units", {

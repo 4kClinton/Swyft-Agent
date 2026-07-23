@@ -3,6 +3,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
 import { parsePaymentSms } from "./lib/smsParse";
+import { leadsUpsert, leadsResponse } from "./leads";
 
 const http = httpRouter();
 
@@ -129,7 +130,8 @@ http.route({
 
 // ---------------------------------------------------------------------------
 // Lipana webhook — boosts & subscriptions ONLY (never rent). Verify the
-// shared secret, then settle the referenced boost. (1stPlan.md §4.2)
+// shared secret, then settle the matching paymentIntent by checkoutRequestID.
+// (1stPlan.md §4.2)
 // ---------------------------------------------------------------------------
 http.route({
   path: "/api/lipana/webhook",
@@ -137,24 +139,84 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const raw = await request.text();
     const sig = request.headers.get("x-lipana-signature") ?? "";
+    // Debug: log the raw payload BEFORE auth so a misconfigured
+    // LIPANA_WEBHOOK_SECRET (→ 401) still surfaces what Lipana actually sends.
+    // Remove or gate behind an env flag once the payload shape is confirmed.
+    console.log("[lipana:webhook] raw:", raw, "hasSig:", sig.length > 0);
     const ok = await verifyHmac(
       raw,
       sig,
       process.env.LIPANA_WEBHOOK_SECRET ?? "",
     );
-    if (!ok) return new Response("Unauthorized", { status: 401 });
+    if (!ok) {
+      console.warn("[lipana:webhook] signature verification FAILED — rejecting");
+      return new Response("Unauthorized", { status: 401 });
+    }
 
     const evt = JSON.parse(raw);
-    // reference shape: "boost:<boostId>" | "invoice:<invoiceId>"
-    if (
-      /success/i.test(String(evt.status ?? evt.event ?? "")) &&
-      typeof evt.reference === "string" &&
-      evt.reference.startsWith("boost:")
-    ) {
-      await ctx.runMutation(internal.boosts.settle, {
-        boostId: evt.reference.slice("boost:".length),
-        lipanaRef: String(evt.transactionId ?? evt.reference),
-      });
+    // Lipana payload nests the transaction under `data`; the top-level `event`
+    // is e.g. "payment.success" / "payment.failed". Lipana has NO reference
+    // passthrough, so we reconcile via the M-Pesa checkoutRequestID against a
+    // paymentIntents row recorded when the STK push was started (lib/lipana.ts).
+    const data = (evt.data ?? evt) as Record<string, unknown>;
+    const isSuccess = /success/i.test(
+      String(evt.event ?? data.status ?? evt.status ?? ""),
+    );
+    // Primary reconciliation key is Lipana's transactionId (present on the STK
+    // ACK); checkoutRequestID is a fallback for when Lipana does echo it.
+    const transactionId = String(data.transactionId ?? "");
+    const checkoutRequestId = String(
+      data.checkoutRequestID ?? data.checkoutRequestId ?? "",
+    );
+    const lipanaRef = transactionId || checkoutRequestId;
+
+    if (transactionId || checkoutRequestId) {
+      const intent = transactionId
+        ? await ctx.runQuery(internal.paymentIntents.byTransaction, {
+            transactionId,
+          })
+        : await ctx.runQuery(internal.paymentIntents.byCheckout, {
+            checkoutRequestId,
+          });
+      console.log(
+        "[lipana:webhook] resolve",
+        JSON.stringify({
+          transactionId,
+          checkoutRequestId,
+          isSuccess,
+          matched: intent
+            ? { id: intent._id, kind: intent.kind, status: intent.status }
+            : null,
+        }),
+      );
+      // Only act on a pending intent (idempotent on webhook redelivery).
+      if (intent && intent.status === "pending") {
+        if (isSuccess) {
+          if (intent.kind === "subscription") {
+            await ctx.runMutation(internal.subscriptions.settle, {
+              companyId: intent.companyId,
+              plan: intent.plan ?? "",
+              months: intent.months ?? 1,
+              lipanaRef,
+            });
+          } else if (intent.kind === "boost" && intent.boostId) {
+            await ctx.runMutation(internal.boosts.settle, {
+              boostId: intent.boostId,
+              lipanaRef,
+            });
+          }
+          await ctx.runMutation(internal.paymentIntents.mark, {
+            id: intent._id,
+            status: "settled",
+            transactionId: lipanaRef,
+          });
+        } else {
+          await ctx.runMutation(internal.paymentIntents.mark, {
+            id: intent._id,
+            status: "failed",
+          });
+        }
+      }
     }
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
@@ -568,5 +630,10 @@ async function verifyHmac(
   }
   return diff === 0;
 }
+
+// Inbound lead pushes from the swyft-customer backend (HMAC-signed, no PII).
+http.route({ path: "/api/leads/upsert", method: "POST", handler: leadsUpsert });
+// Tenant's Interested / Not-this-one, relayed from the customer backend.
+http.route({ path: "/api/leads/response", method: "POST", handler: leadsResponse });
 
 export default http;

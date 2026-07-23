@@ -7,7 +7,7 @@ import {
   internalQuery,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { requireCompany, assertSameCompany } from "./lib/rbac";
+import { requireCompany, assertSameCompany, requireActiveSubscription } from "./lib/rbac";
 import { sendResendEmail, sendAtSms } from "./lib/comms";
 
 const channelValidator = v.union(v.literal("email"), v.literal("sms"));
@@ -50,6 +50,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const { companyId } = await requireCompany(ctx);
+    await requireActiveSubscription(ctx, companyId);
     if (args.channels.length === 0) {
       throw new Error("Pick at least one delivery channel");
     }

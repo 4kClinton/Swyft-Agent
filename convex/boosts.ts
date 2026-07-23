@@ -9,6 +9,7 @@ import {
 import { api, internal } from "./_generated/api";
 import { requireCompany, assertSameCompany } from "./lib/rbac";
 import { normalizePhone } from "./lib/phone";
+import { initiateStkPush } from "./lib/lipana";
 import type { Id } from "./_generated/dataModel";
 
 /** Create a pending boost for a listing; payment settles it via Lipana. */
@@ -38,18 +39,22 @@ export const boostForPayment = internalQuery({
   args: { boostId: v.id("boosts") },
   handler: async (ctx, { boostId }) => {
     const boost = await ctx.db.get(boostId);
-    return boost ? { amount: boost.amount } : null;
+    return boost ? { amount: boost.amount, companyId: boost.companyId } : null;
   },
 });
 
 /**
  * Kick off an STK push for a boost via Lipana (boosts/subscriptions only —
- * never rent, 1stPlan.md §4.2). reference = "boost:<boostId>" so the webhook
- * can settle it (see http.ts /api/lipana/webhook → boosts.settle).
+ * never rent, 1stPlan.md §4.2). Lipana has no reference passthrough, so we
+ * record a `paymentIntents` row keyed by the returned checkoutRequestId; the
+ * webhook reconciles it (http.ts /api/lipana/webhook → boosts.settle).
  */
 export const payWithMpesa = action({
   args: { boostId: v.id("boosts"), phone: v.string() },
-  handler: async (ctx, { boostId, phone }): Promise<{ ok: boolean }> => {
+  handler: async (
+    ctx,
+    { boostId, phone },
+  ): Promise<{ ok: boolean; intentId: Id<"paymentIntents"> }> => {
     // Ownership check via query (company-scoped).
     await ctx.runQuery(api.boosts.assertOwned, { boostId });
     const boost = await ctx.runQuery(internal.boosts.boostForPayment, {
@@ -60,26 +65,20 @@ export const payWithMpesa = action({
     const normalized = normalizePhone(phone);
     if (!normalized) throw new Error(`Invalid phone "${phone}"`);
 
-    const secret = process.env.LIPANA_SECRET_KEY;
-    if (!secret) throw new Error("LIPANA_SECRET_KEY not configured");
+    const { transactionId, checkoutRequestId } = await initiateStkPush(
+      normalized,
+      boost.amount,
+    );
 
-    const resp = await fetch("https://api.lipana.dev/payments/stk-push", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${secret}`,
-      },
-      body: JSON.stringify({
-        phone: normalized,
-        amount: boost.amount,
-        reference: `boost:${boostId}`,
-        description: "Swyft listing boost",
-      }),
+    const intentId = await ctx.runMutation(internal.paymentIntents.create, {
+      kind: "boost",
+      companyId: boost.companyId,
+      checkoutRequestId,
+      transactionId,
+      amount: boost.amount,
+      boostId,
     });
-    if (!resp.ok) {
-      throw new Error(`Lipana STK error ${resp.status}: ${await resp.text()}`);
-    }
-    return { ok: true };
+    return { ok: true, intentId };
   },
 });
 

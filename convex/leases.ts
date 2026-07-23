@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireCompany, assertSameCompany } from "./lib/rbac";
+import { requireCompany, assertSameCompany, requireActiveSubscription } from "./lib/rbac";
 import { reopenListingsOnVacant } from "./marketplace";
 
 export const listByTenant = query({
@@ -27,6 +27,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const { companyId } = await requireCompany(ctx);
+    await requireActiveSubscription(ctx, companyId);
     assertSameCompany(await ctx.db.get(args.tenantId), companyId);
     assertSameCompany(await ctx.db.get(args.unitId), companyId);
     if (args.billingDay < 1 || args.billingDay > 28) {

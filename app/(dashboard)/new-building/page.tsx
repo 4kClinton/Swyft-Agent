@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useMutation, useAction, useQuery } from "convex/react"
 import { useAuth } from "@/components/auth-provider"
@@ -28,6 +28,7 @@ import { toast } from "sonner"
 import Link from "next/link"
 
 import type { PickedLocation } from "@/components/location-picker"
+import { NAIROBI_AREAS, type Area } from "@/lib/areas"
 
 // Leaflet touches `window`, so the picker must be client-only.
 const LocationPicker = dynamic(() => import("@/components/location-picker"), {
@@ -84,6 +85,18 @@ export default function NewBuildingPage() {
   const isPropertyManager = user?.companyKind === "property_manager"
   const createBuilding = useMutation(api.buildings.create)
   const publishVacancies = useAction(api.marketplace.publishBuildingVacancies)
+
+  // Areas come from the shared, admin-managed list on the customer side so the
+  // two apps never drift. Seed constant is the fallback until the fetch resolves.
+  const fetchSharedAreas = useAction(api.areas.fetchShared)
+  const [areaList, setAreaList] = useState<Area[]>(NAIROBI_AREAS)
+  useEffect(() => {
+    let alive = true
+    fetchSharedAreas({})
+      .then((list) => { if (alive && list?.length) setAreaList(list) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [fetchSharedAreas])
   // Property managers must say which landlord owns the building. Only fetched
   // for PMs; landlord-kind companies own their own buildings (implicit).
   const landlordsData = useQuery(api.landlords.list, isPropertyManager ? {} : "skip")
@@ -100,6 +113,7 @@ export default function NewBuildingPage() {
   const [recordPromptTypes, setRecordPromptTypes] = useState<string[] | null>(null)
   const [form, setForm] = useState({
     name: "",
+    area: "",
     propertyType: "apartment",
     caretakerName: "",
     caretakerPhone: "",
@@ -270,6 +284,7 @@ export default function NewBuildingPage() {
     if (i === 0) {
       if (isPropertyManager && !landlordId) return "Select the landlord who owns this building"
       if (!form.name.trim()) return "Building name is required"
+      if (!form.area) return "Select the area — it's how house-hunters' leads reach you"
       if (!form.caretakerName.trim()) return "Caretaker name is required"
       if (!form.caretakerPhone.trim()) return "Caretaker phone is required"
       if (buildingImage.uploading) return "Wait for the building image to finish uploading"
@@ -347,6 +362,7 @@ export default function NewBuildingPage() {
       const buildingId = await createBuilding({
         landlordId: isPropertyManager && landlordId ? (landlordId as any) : undefined,
         name: form.name,
+        area: form.area || undefined,
         address: location?.address || undefined,
         city: location?.city || undefined,
         county: location?.county || undefined,
@@ -457,6 +473,20 @@ export default function NewBuildingPage() {
               <div className="space-y-2">
                 <Label htmlFor="name">Building name *</Label>
                 <Input id="name" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Sunrise Apartments" required />
+              </div>
+              <div className="space-y-2">
+                <Label>Area *</Label>
+                <Select value={form.area} onValueChange={(v) => set("area", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select the neighbourhood" /></SelectTrigger>
+                  <SelectContent>
+                    {areaList.map((a) => (
+                      <SelectItem key={a.key} value={a.key}>{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  House-hunters searching this area are matched to your vacant units here.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Type</Label>

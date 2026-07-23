@@ -20,6 +20,7 @@ import {
   Megaphone,
   Upload,
   Database,
+  Inbox,
 } from "lucide-react"
 
 import {
@@ -63,6 +64,11 @@ const getMenuItems = (userRole: string, companyKind?: string) => {
       title: "Dashboard",
       url: "/dashboard",
       icon: Home,
+    },
+    {
+      title: "Leads",
+      url: "/leads",
+      icon: Inbox,
     },
   ]
 
@@ -111,6 +117,11 @@ const getMenuItems = (userRole: string, companyKind?: string) => {
         title: "Account Settings",
         url: "/settings",
         icon: Settings,
+      },
+      {
+        title: "Billing & Plan",
+        url: "/billing",
+        icon: CreditCard,
       },
     ],
   }

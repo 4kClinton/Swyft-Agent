@@ -146,6 +146,13 @@ export default defineSchema({
       v.literal("inactive"),
       v.literal("cancelled"),
     ),
+    // Epoch ms the current paid/trial period ends. Absent on legacy rows — the
+    // entitlement helper (lib/subscription.ts) then derives a TRIAL_DAYS window
+    // from `_creationTime`. Pushed forward on each successful renewal.
+    currentPeriodEnd: v.optional(v.number()),
+    // Lipana transaction id of the last settled renewal — webhook idempotency
+    // guard so a re-delivered callback can't extend the period twice.
+    lastPaymentRef: v.optional(v.string()),
   }),
 
   // The canonical identity row is the auth-managed `users` table (from
@@ -157,6 +164,11 @@ export default defineSchema({
     phone: v.optional(v.string()),
     role: roleValidator,
     isCompanyOwner: v.boolean(),
+    // Platform super-admin (Swyft staff). Orthogonal to the company-scoped
+    // `role` above: it grants access to the cross-company /platform admin area,
+    // NOT to any single company's data. Absent/false for every normal user.
+    // Grant with the `platformAdmin.grantPlatformAdmin` internal mutation.
+    isPlatformAdmin: v.optional(v.boolean()),
     // Module → access levels, mirrors legacy RBAC (lib/rbac.ts).
     access: v.optional(v.record(v.string(), v.array(v.string()))),
   })
@@ -224,6 +236,11 @@ export default defineSchema({
     address: v.optional(v.string()),
     city: v.optional(v.string()),
     county: v.optional(v.string()),
+    // Structured Nairobi area key from lib/areas.ts (NAIROBI_AREAS) — the JOIN
+    // KEY for lead matching (rules/DATA_FLOW/leads.md §3). Optional here for
+    // legacy rows; required in the building form going forward. Kept distinct
+    // from free-text city/county, which are useless for matching.
+    area: v.optional(v.string()),
     description: v.optional(v.string()),
     propertyType: v.optional(
       v.union(
@@ -264,6 +281,20 @@ export default defineSchema({
     // building cover's customer-served URL, kept only for our own dashboard.
     mediaKeyPrefix: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
+    // How many building photos live under `<prefix>_building`. Lets the edit UI
+    // show what's already recorded on reopen (the bytes live customer-side).
+    buildingImageCount: v.optional(v.number()),
+    // Per-unit-type vacant-sample photo manifest: how many images each unit type
+    // has under `<prefix>_type_<type>`. `type` is a UNIT_TYPES key (studio | 1br
+    // | 2br | ...). Same tagging as the new-building wizard.
+    unitTypeMedia: v.optional(
+      v.array(
+        v.object({
+          type: v.string(),
+          imageCount: v.number(),
+        }),
+      ),
+    ),
   })
     .index("by_company", ["companyId"])
     .index("by_landlord", ["landlordId"]),
@@ -351,7 +382,8 @@ export default defineSchema({
   })
     .index("by_company", ["companyId"])
     .index("by_company_and_phone", ["companyId", "phone"])
-    .index("by_unit", ["unitId"]),
+    .index("by_unit", ["unitId"])
+    .index("by_building", ["buildingId"]),
 
   leases: defineTable({
     companyId: v.id("companyAccounts"),
@@ -754,6 +786,34 @@ export default defineSchema({
     .index("by_listing", ["listingId"])
     .index("by_lipanaRef", ["lipanaRef"]),
 
+  // Pending Lipana STK-push payments, keyed by the M-Pesa checkoutRequestId.
+  // Lipana has no reference passthrough, so this row is how the webhook maps a
+  // settled payment back to what it was for (subscription renewal or boost).
+  // See lib/lipana.ts and http.ts /api/lipana/webhook.
+  paymentIntents: defineTable({
+    kind: v.union(v.literal("subscription"), v.literal("boost")),
+    companyId: v.id("companyAccounts"),
+    // Lipana's `transactionId` is the primary reconciliation key (the STK-push
+    // ACK returns it; the webhook echoes it). `checkoutRequestId` often isn't in
+    // the ACK, so it's optional and only a fallback match key.
+    transactionId: v.optional(v.string()),
+    checkoutRequestId: v.optional(v.string()),
+    amount: v.number(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("settled"),
+      v.literal("failed"),
+    ),
+    // subscription-only
+    plan: v.optional(v.string()),
+    months: v.optional(v.number()),
+    // boost-only
+    boostId: v.optional(v.id("boosts")),
+  })
+    .index("by_transactionId", ["transactionId"])
+    .index("by_checkoutRequestId", ["checkoutRequestId"])
+    .index("by_company", ["companyId"]),
+
   // --- Config -------------------------------------------------------------
   settings: defineTable({
     scope: v.union(
@@ -777,4 +837,44 @@ export default defineSchema({
     bankUsed: v.optional(v.string()),
     role: v.optional(v.string()),
   }).index("by_phone", ["phone"]),
+
+  // --- Leads (house-hunting demand) ---------------------------------------
+  // De-identified projection of a swyft-customer lead, pushed here via the
+  // HMAC-signed POST /api/leads/upsert (rules/DATA_FLOW/leads.md). NO tenant PII
+  // ever lands here — no name, no phone, no exact budget. A property manager
+  // sees a lead only if they have a building in its `area` (gated in the query).
+  leadMatches: defineTable({
+    leadRef: v.string(), // opaque customer-side id; idempotency key
+    area: v.string(), // shared area key — the hard match gate
+    unitType: v.string(),
+    bedrooms: v.optional(v.number()),
+    budgetMin: v.number(),
+    budgetMax: v.number(),
+    budgetBand: v.string(), // display label, e.g. "12k–16k"
+    moveWindow: v.string(),
+    depositReady: v.boolean(),
+    status: v.string(), // open | matched | viewing | closed | expired (mirrors customer)
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_leadRef", ["leadRef"])
+    .index("by_area_and_status", ["area", "status"]),
+
+  // A manager's offer of a vacant unit against a lead. Server-enforced cap of 3
+  // sends per lead (rules/DATA_FLOW/leads.md §4). One row per (leadRef, unit).
+  leadSends: defineTable({
+    leadRef: v.string(),
+    companyId: v.id("companyAccounts"),
+    unitId: v.id("units"),
+    buildingId: v.id("buildings"),
+    status: v.union(
+      v.literal("sent"),
+      v.literal("interested"),
+      v.literal("declined"),
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_leadRef", ["leadRef"])
+    .index("by_leadRef_and_unit", ["leadRef", "unitId"])
+    .index("by_company", ["companyId"]),
 });

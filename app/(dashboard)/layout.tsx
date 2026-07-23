@@ -3,6 +3,7 @@
 import type React from "react"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { SubscriptionGate } from "@/components/subscription-gate"
 import { useAuth } from "@/components/auth-provider"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
@@ -76,7 +77,9 @@ export default function DashboardLayout({
            
          
 
-          <main className="flex-1 overflow-auto bg-card">{children}</main>
+          <main className="flex-1 overflow-auto bg-card">
+            <SubscriptionGate>{children}</SubscriptionGate>
+          </main>
         </SidebarInset>
       </div>
     </SidebarProvider>

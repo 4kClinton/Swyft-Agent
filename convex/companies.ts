@@ -3,6 +3,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { requireProfile, requireRole } from "./lib/rbac";
 import { companyKindValidator } from "./schema";
+import { evaluateSubscription, TRIAL_DAYS, DAY_MS } from "./lib/subscription";
 
 /**
  * Provision a profile for a newly created auth user. Called from auth.ts
@@ -52,6 +53,7 @@ export const seedForNewUser = internalMutation({
       phone: args.phone,
       plan: "free",
       status: "trial",
+      currentPeriodEnd: Date.now() + TRIAL_DAYS * DAY_MS,
     });
 
     await ctx.db.insert("profiles", {
@@ -93,6 +95,11 @@ export const me = query({
       profile,
       company,
       email,
+      // Entitlement state for the client paywall (single source of truth with
+      // the server write-guard). Null if the company row is somehow missing.
+      subscription: company
+        ? evaluateSubscription(company, Date.now())
+        : null,
     };
   },
 });

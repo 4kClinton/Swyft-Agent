@@ -1,4 +1,5 @@
 import { internalMutation } from "./_generated/server";
+import { DAY_MS, TRIAL_DAYS } from "./lib/subscription";
 
 /**
  * One-off migration for the owner→landlord rename + company `kind` backfill.
@@ -61,6 +62,33 @@ export const backfillPaymentSourceStatus = internalMutation({
         });
         updated++;
       }
+    }
+    return { updated };
+  },
+});
+
+/**
+ * One-off: seed `currentPeriodEnd` for EXISTING companies that predate the
+ * paywall, so deploying the subscription gate never retroactively locks a live
+ * account out (the entitlement helper would otherwise derive an expiry from the
+ * old `_creationTime`). Gives everyone a fresh TRIAL_DAYS runway from now;
+ * already-cancelled/inactive companies are left untouched (intended blocked).
+ *
+ * Run once after deploy:
+ *   npx convex run migrations:backfillSubscriptionPeriods
+ */
+export const backfillSubscriptionPeriods = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    let updated = 0;
+    for (const company of await ctx.db.query("companyAccounts").collect()) {
+      if (company.currentPeriodEnd !== undefined) continue;
+      if (company.status === "cancelled" || company.status === "inactive") continue;
+      await ctx.db.patch(company._id, {
+        currentPeriodEnd: now + TRIAL_DAYS * DAY_MS,
+      });
+      updated++;
     }
     return { updated };
   },
