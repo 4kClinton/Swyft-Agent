@@ -194,7 +194,7 @@ export const receiptPdfUrl = action({
     }
     const bytes = await buildReceiptPdf(ctxData.data);
     const storageId = await ctx.storage.store(
-      new Blob([bytes], { type: "application/pdf" }),
+      new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" }),
     );
     await ctx.runMutation(internal.documents.setReceiptPdf, { receiptId, storageId });
     const url = await ctx.storage.getUrl(storageId);
@@ -213,7 +213,7 @@ export const invoicePdfUrl = action({
     // Invoice balance/status change over time → always regenerate.
     const bytes = await buildInvoicePdf(ctxData.data);
     const storageId = await ctx.storage.store(
-      new Blob([bytes], { type: "application/pdf" }),
+      new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" }),
     );
     await ctx.runMutation(internal.documents.setInvoicePdf, { invoiceId, storageId });
     const url = await ctx.storage.getUrl(storageId);
@@ -243,7 +243,7 @@ async function emailOneInvoice(
 
   const bytes = await buildInvoicePdf(d);
   const storageId = await ctx.storage.store(
-    new Blob([bytes], { type: "application/pdf" }),
+    new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" }),
   );
   await ctx.runMutation(internal.documents.setInvoicePdf, { invoiceId, storageId });
 
@@ -381,7 +381,7 @@ export const sendReceiptEmail = internalAction({
     const bytes = await buildReceiptPdf(ctxData.data);
     // Cache the generated PDF on the receipt for later viewing.
     const storageId = await ctx.storage.store(
-      new Blob([bytes], { type: "application/pdf" }),
+      new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" }),
     );
     await ctx.runMutation(internal.documents.setReceiptPdf, { receiptId, storageId });
 

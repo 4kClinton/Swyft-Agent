@@ -190,7 +190,7 @@ async function generateAndStore(
   const pdfData: LandlordReportData = { ...data.pdf, period };
   const bytes = await buildLandlordReportPdf(pdfData);
   const storageId = await ctx.storage.store(
-    new Blob([bytes], { type: "application/pdf" }),
+    new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" }),
   );
   const deliveryId = await ctx.runMutation(internal.reports.recordDelivery, {
     companyId: data.companyId,

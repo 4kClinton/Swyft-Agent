@@ -30,7 +30,7 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table"
-import { Inbox, Home, MapPin, CheckCircle2 } from "lucide-react"
+import { Inbox, Home, MapPin, CheckCircle2, Phone, CalendarCheck, User } from "lucide-react"
 import { toast } from "sonner"
 import type { Id } from "@/convex/_generated/dataModel"
 
@@ -48,12 +48,74 @@ function ageLabel(ts: number): string {
   return `${Math.floor(hrs / 24)}d`
 }
 
+type LeadRow = NonNullable<
+  ReturnType<typeof useQuery<typeof api.leads.forMyCompany>>
+>["leads"][number]
+
+type LeadFilter = "all" | "matches" | "action" | "interested" | "deposit"
+
+const FILTERS: { key: LeadFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "matches", label: "Matches" },
+  { key: "action", label: "Needs action" },
+  { key: "interested", label: "Interested" },
+  { key: "deposit", label: "Deposit ready" },
+]
+
+// A lead "needs action" if I can still do something about it: the tenant replied
+// Interested (follow up), or I have a matching unit I haven't sent yet.
+function needsAction(l: LeadRow): boolean {
+  if (l.myResponse === "interested") return true
+  return l.matchingUnitCount > 0 && !l.iSent && l.sendCount < 3
+}
+
+function matchesFilter(l: LeadRow, f: LeadFilter): boolean {
+  switch (f) {
+    case "matches":
+      return l.matchingUnitCount > 0
+    case "action":
+      return needsAction(l)
+    case "interested":
+      return l.myResponse === "interested"
+    case "deposit":
+      return l.depositReady
+    default:
+      return true
+  }
+}
+
 export default function LeadsPage() {
   const data = useQuery(api.leads.forMyCompany)
   const [openLeadRef, setOpenLeadRef] = useState<string | null>(null)
+  const [contactLead, setContactLead] = useState<LeadRow | null>(null)
+  const [filter, setFilter] = useState<LeadFilter>("all")
+  const confirmViewing = useMutation(api.leads.confirmViewing)
+  const [confirming, setConfirming] = useState<string | null>(null)
+
+  const onConfirmViewing = async (l: LeadRow) => {
+    if (!l.viewingUnitId) return
+    setConfirming(l.leadRef)
+    try {
+      await confirmViewing({ leadRef: l.leadRef, unitId: l.viewingUnitId })
+      toast.success("Viewing confirmed — the house-hunter's contact will appear here shortly.")
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not confirm the viewing.")
+    } finally {
+      setConfirming(null)
+    }
+  }
 
   const loading = data === undefined
   const leads = data?.leads ?? []
+  const visibleLeads = useMemo(
+    () => leads.filter((l) => matchesFilter(l, filter)),
+    [leads, filter],
+  )
+  const counts = useMemo(() => {
+    const c = {} as Record<LeadFilter, number>
+    for (const { key } of FILTERS) c[key] = leads.filter((l) => matchesFilter(l, key)).length
+    return c
+  }, [leads])
   const matchedFirst = useMemo(
     () => leads.filter((l) => l.matchingUnitCount > 0),
     [leads],
@@ -104,8 +166,35 @@ export default function LeadsPage() {
           description="When someone house-hunting in your areas posts what they need, they'll appear here — matched to your vacant units."
         />
       ) : (
-        <Card>
+        <>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {FILTERS.map((f) => (
+              <Button
+                key={f.key}
+                size="sm"
+                variant={filter === f.key ? "default" : "outline"}
+                onClick={() => setFilter(f.key)}
+                className="gap-1.5"
+              >
+                {f.label}
+                <Badge
+                  variant="secondary"
+                  className={`px-1.5 text-[10px] ${
+                    filter === f.key ? "bg-white/20 text-white" : ""
+                  }`}
+                >
+                  {counts[f.key]}
+                </Badge>
+              </Button>
+            ))}
+          </div>
+          <Card>
           <CardContent className="p-0">
+            {visibleLeads.length === 0 ? (
+              <p className="p-8 text-center text-sm text-muted-foreground">
+                No leads match this filter.
+              </p>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -120,7 +209,7 @@ export default function LeadsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leads.map((l) => (
+                {visibleLeads.map((l) => (
                   <TableRow key={l.leadRef}>
                     <TableCell className="font-medium capitalize">
                       {l.area.replace(/-/g, " ")}
@@ -148,7 +237,32 @@ export default function LeadsPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {l.myResponse === "interested" ? (
+                      {l.contact ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => setContactLead(l)}
+                        >
+                          <User className="h-3.5 w-3.5" />
+                          View contact
+                        </Button>
+                      ) : l.viewingStatus === "requested" ? (
+                        <Button
+                          size="sm"
+                          className="gap-1.5 bg-green-600 hover:bg-green-700"
+                          disabled={confirming === l.leadRef}
+                          onClick={() => onConfirmViewing(l)}
+                        >
+                          <CalendarCheck className="h-3.5 w-3.5" />
+                          {confirming === l.leadRef ? "Confirming…" : "Confirm viewing"}
+                        </Button>
+                      ) : l.viewingStatus === "confirmed" ? (
+                        <Badge variant="secondary" className="gap-1">
+                          <CalendarCheck className="h-3 w-3" />
+                          Viewing confirmed
+                        </Badge>
+                      ) : l.myResponse === "interested" ? (
                         <Badge className="border-transparent bg-green-600 text-white hover:bg-green-600">
                           Interested 🎉
                         </Badge>
@@ -173,11 +287,14 @@ export default function LeadsPage() {
                 ))}
               </TableBody>
             </Table>
+            )}
           </CardContent>
-        </Card>
+          </Card>
+        </>
       )}
 
       <SendDrawer leadRef={openLeadRef} onClose={() => setOpenLeadRef(null)} />
+      <ContactSheet lead={contactLead} onClose={() => setContactLead(null)} />
 
       {matchedFirst.length === 0 && leads.length > 0 && (
         <p className="mt-4 text-xs text-muted-foreground">
@@ -186,6 +303,75 @@ export default function LeadsPage() {
         </p>
       )}
     </div>
+  )
+}
+
+// The tenant contact a confirmed viewing released — photo, request, phone.
+function ContactSheet({
+  lead,
+  onClose,
+}: {
+  lead: LeadRow | null
+  onClose: () => void
+}) {
+  const c = lead?.contact ?? null
+  return (
+    <Sheet open={!!lead && !!c} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent className="flex w-full flex-col sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>House-hunter contact</SheetTitle>
+          <SheetDescription>
+            Shared because you confirmed a viewing. Please only use it to arrange
+            the viewing.
+          </SheetDescription>
+        </SheetHeader>
+        {c && (
+          <div className="mt-4 space-y-5">
+            <div className="flex items-center gap-4">
+              {c.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={c.photoUrl}
+                  alt={c.name}
+                  className="h-16 w-16 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                  <User className="h-7 w-7 text-muted-foreground" />
+                </div>
+              )}
+              <div>
+                <div className="text-lg font-semibold">{c.name}</div>
+                {lead && (
+                  <div className="text-sm capitalize text-muted-foreground">
+                    {lead.area.replace(/-/g, " ")}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <a
+              href={`tel:${c.phone}`}
+              className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50"
+            >
+              <Phone className="h-4 w-4 text-green-600" />
+              <span className="text-sm font-medium">{c.phone}</span>
+            </a>
+
+            {c.message && (
+              <div>
+                <div className="mb-1 text-xs font-medium text-muted-foreground">
+                  Their request
+                </div>
+                <p className="rounded-lg border bg-muted/30 p-3 text-sm">
+                  {c.message}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
   )
 }
 

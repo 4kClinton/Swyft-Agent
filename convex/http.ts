@@ -3,7 +3,12 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
 import { parsePaymentSms } from "./lib/smsParse";
-import { leadsUpsert, leadsResponse } from "./leads";
+import {
+  leadsUpsert,
+  leadsResponse,
+  leadsViewingRequest,
+  leadsContactGrant,
+} from "./leads";
 
 const http = httpRouter();
 
@@ -635,5 +640,17 @@ async function verifyHmac(
 http.route({ path: "/api/leads/upsert", method: "POST", handler: leadsUpsert });
 // Tenant's Interested / Not-this-one, relayed from the customer backend.
 http.route({ path: "/api/leads/response", method: "POST", handler: leadsResponse });
+// Tenant requested a viewing on an offered unit (no PII — leadRef + unit only).
+http.route({
+  path: "/api/leads/viewing-request",
+  method: "POST",
+  handler: leadsViewingRequest,
+});
+// Tenant contact grant, released by the customer after a confirmed viewing (§5).
+http.route({
+  path: "/api/leads/contact-grant",
+  method: "POST",
+  handler: leadsContactGrant,
+});
 
 export default http;

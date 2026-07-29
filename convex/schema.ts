@@ -877,4 +877,41 @@ export default defineSchema({
     .index("by_leadRef", ["leadRef"])
     .index("by_leadRef_and_unit", ["leadRef", "unitId"])
     .index("by_company", ["companyId"]),
+
+  // A viewing a tenant requested against a unit a manager offered. Lands from the
+  // customer app via POST /api/leads/viewing-request (no PII — leadRef + unit
+  // only). When the manager confirms, it becomes the §5 "viewing confirmed
+  // in-app" trigger that releases contact both ways. One row per (leadRef, unit).
+  leadViewings: defineTable({
+    leadRef: v.string(),
+    unitId: v.id("units"),
+    companyId: v.id("companyAccounts"),
+    buildingId: v.id("buildings"),
+    status: v.union(
+      v.literal("requested"),
+      v.literal("confirmed"),
+      v.literal("declined"),
+    ),
+    requestedAt: v.number(),
+    confirmedAt: v.optional(v.number()),
+  })
+    .index("by_leadRef", ["leadRef"])
+    .index("by_leadRef_and_unit", ["leadRef", "unitId"])
+    .index("by_company", ["companyId"]),
+
+  // The tenant contact grant — the ONLY place agent-side PII for a house-hunter
+  // lives, and only ever after a confirmed viewing (rules/DATA_FLOW/leads.md §5).
+  // Delivered by the customer app via POST /api/leads/contact-grant, scoped to
+  // the company whose viewing was confirmed. Never crosses back over the wire.
+  leadContacts: defineTable({
+    leadRef: v.string(),
+    companyId: v.id("companyAccounts"),
+    name: v.string(),
+    phone: v.string(),
+    message: v.optional(v.string()), // composed from the structured request
+    photoUrl: v.optional(v.string()),
+    grantedAt: v.number(),
+  })
+    .index("by_leadRef", ["leadRef"])
+    .index("by_leadRef_and_company", ["leadRef", "companyId"]),
 });
